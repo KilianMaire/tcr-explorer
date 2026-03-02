@@ -1,0 +1,24 @@
+# =============================================================================
+# imgt-api — production dependencies
+# =============================================================================
+
+# --- Web framework & API ---
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+python-multipart==0.0.20
+httpx==0.28.1
+
+# --- Scientific computing ---
+numpy>=1.24.0
+pandas>=2.0.0
+
+# --- Bioinformatics ---
+biopython==1.85
+
+# --- Data I/O ---
+pyarrow>=15.0.0
+tqdm>=4.66.0
+
+# --- Dashboard & frontend ---
+streamlit>=1.35.0

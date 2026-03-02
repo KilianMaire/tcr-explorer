@@ -1,0 +1,4 @@
+species,gene_name,allele_name,region,sequence
+human,TRAV1-2,TRAV1-2*01,v-region,ATGGACACAGCACTCAGC
+human,TRBV7-9,TRBV7-9*01,v-region,ATGGGCTCCAGGCTGGTG
+mouse,TRBV13-2,TRBV13-2*01,v-region,ATGGCCTGGGGTCCAGTG

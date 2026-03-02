@@ -1,0 +1,128 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Shared base for all services
+# ---------------------------------------------------------------------------
+x-base: &base
+  image: python:3.11-slim
+  working_dir: /app
+  volumes:
+    - ./:/app
+    - pip-cache:/root/.cache/pip  # re-use downloaded wheels across restarts
+  restart: unless-stopped
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  # ---------- HLA tool server (EBI IMGT/HLA) --------------------------------
+  hla-server:
+    <<: *base
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn servers.hla_server:app --host 0.0.0.0 --port 8101"
+    ports:
+      - "8101:8101"
+    environment:
+      - EBI_HLA_API_URL=${EBI_HLA_API_URL:-https://www.ebi.ac.uk/cgi-bin/ipd/api/allele}
+      - HLA_DATA_FILE=${HLA_DATA_FILE:-examples/hla_seed.csv}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------- TCR tool server (NCBI Entrez) ----------------------------------
+  tcr-server:
+    <<: *base
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn servers.tcr_server:app --host 0.0.0.0 --port 8102"
+    ports:
+      - "8102:8102"
+    environment:
+      - NCBI_API_KEY=${NCBI_API_KEY:-}
+      - TCR_DATA_FILE=${TCR_DATA_FILE:-examples/tcr_seed.csv}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8102/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------- VDJdb tool server ---------------------------------------------
+  # NOTE: stitchrdl downloads ~10 MB of IMGT germline data on first start.
+  #       Data is re-downloaded each container start; mount a named volume at
+  #       the stitchr data path if you need persistence between restarts.
+  vdjdb-server:
+    <<: *base
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             stitchrdl -s human &&
+             uvicorn servers.vdjdb_server:app --host 0.0.0.0 --port 8103"
+    ports:
+      - "8103:8103"
+    environment:
+      - VDJDB_DATA_FILE=${VDJDB_DATA_FILE:-examples/vdjdb_seed.csv}
+      - VDJDB_API_URL=${VDJDB_API_URL:-https://vdjdb.cdr3.net/api/database/search}
+      - VDJDB_API_BASE=${VDJDB_API_BASE:-https://vdjdb.cdr3.net}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8103/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------- IEDB tool server ----------------------------------------------
+  iedb-server:
+    <<: *base
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn servers.iedb_server:app --host 0.0.0.0 --port 8104"
+    ports:
+      - "8104:8104"
+    environment:
+      - IEDB_API_URL=${IEDB_API_URL:-https://query-api.iedb.org/tcell_search}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8104/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------- Main API gateway (port 8000) -----------------------------------
+  imgt-api:
+    <<: *base
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             PYTHONPATH=src uvicorn imgt_app.api:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    environment:
+      # Tool server URLs — use Docker service names (not 127.0.0.1)
+      - HLA_SERVER_URL=http://hla-server:8101
+      - TCR_SERVER_URL=http://tcr-server:8102
+      - VDJDB_SERVER_URL=http://vdjdb-server:8103
+      - IEDB_SERVER_URL=http://iedb-server:8104
+      # Local database
+      - IMGT_DB_PATH=${IMGT_DB_PATH:-/app/imgt.db}
+      # NCBI — optional API key raises rate limit to 10 req/s
+      - NCBI_API_KEY=${NCBI_API_KEY:-}
+      # LM Studio (optional NL query backend)
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL:-local-model}
+    depends_on:
+      - hla-server
+      - tcr-server
+      - vdjdb-server
+      - iedb-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  pip-cache:
+    driver: local

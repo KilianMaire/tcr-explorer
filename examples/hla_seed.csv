@@ -1,0 +1,4 @@
+species,gene_name,allele_name,region,sequence
+human,HLA-A,HLA-A*01:01,exon 2,ATGCGTCTCCGGGAGGCC
+human,HLA-B,HLA-B*07:02,exon 3,TCCGAGGATGGCCGTTAA
+mouse,H2-K1,H2-K1*01:01,exon 2,ATGACCCGGTCTGACTTA

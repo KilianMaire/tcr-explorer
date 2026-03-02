@@ -1,0 +1,65 @@
+# =============================================================================
+# TCRpredictor — Docker build context exclusions
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+
+# Claude / IDE
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python caches
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Environment files (never ship secrets into the image)
+.env
+.env.local
+.env.production
+
+# Data files (mount as volumes instead)
+data/tcrdb/
+batman_cache/
+*.db
+*.sqlite
+
+# DVC
+.dvc/cache/
+.dvc/tmp/
+
+# Documentation / non-runtime files
+docs/
+*.md
+*.pdf
+LICENSE
+
+# Docker (avoid recursive build context)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
