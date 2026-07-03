@@ -41,14 +41,14 @@ class GeneRecord(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    source: Optional[GeneSource] = None
-    species: Optional[Species] = None
-    gene_name: Optional[str] = None
-    region: Optional[str] = None
-    sequence_contains: Optional[str] = None
-    antigen_epitope: Optional[str] = None  # VDJdb: filter by antigen peptide sequence
-    limit: int = Field(default=50, ge=1, le=500)
-    offset: int = Field(default=0, ge=0, le=10000)
+    source: Optional[GeneSource] = Field(None, description="Data source to search: 'hla', 'tcr', 'vdjdb', 'iedb', or 'mhc'.", examples=["tcr", "vdjdb", "iedb"])
+    species: Optional[Species] = Field(None, description="Filter by organism: 'human', 'mouse', or 'other'.", examples=["human", "mouse"])
+    gene_name: Optional[str] = Field(None, description="IMGT gene name to search, e.g. TRBV20-1.", examples=["TRBV20-1", "TRBJ2-7"])
+    region: Optional[str] = Field(None, description="Gene region, e.g. 'V-REGION' or 'J-REGION'.", examples=["V-REGION", "J-REGION"])
+    sequence_contains: Optional[str] = Field(None, description="Nucleotide or amino acid substring to search within sequences.", examples=["CASS", "TGTGCG"])
+    antigen_epitope: Optional[str] = Field(None, description="VDJdb/IEDB: filter by antigen peptide sequence.", examples=["GILGFVFTL", "MSKGEDFCIKVQCAKTGLSLV"])
+    limit: int = Field(default=50, ge=1, le=500, description="Maximum number of records to return (1-500).", examples=[50, 100, 200])
+    offset: int = Field(default=0, ge=0, le=10000, description="Pagination offset, e.g. skip the first N records (0-10000).", examples=[0, 50, 100])
 
 
 class SearchResponse(BaseModel):
