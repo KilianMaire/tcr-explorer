@@ -62,10 +62,26 @@ def load_segment_map(chain: str, species: str, segment: str) -> dict[str, str]:
     return {gene: seq for gene, (_, seq) in best.items()}
 
 
+def _best_frame_translate(nt: str) -> str:
+    """Translate in the reading frame that yields the fewest stop/ambiguous codons.
+
+    Germline segments (notably J) are not in frame 0, so a naive frame-0 translation
+    is biologically meaningless. Trying all three frames and keeping the cleanest one
+    gives a sensible protein for mutual alignment without fabricating a frame.
+    """
+    best, best_penalty = _translate(nt), None
+    for frame in (0, 1, 2):
+        aa = _translate(nt[frame:])
+        penalty = aa.count("*") + aa.count("?")
+        if best_penalty is None or penalty < best_penalty:
+            best, best_penalty = aa, penalty
+    return best
+
+
 def _maybe_translate(seqs: list[tuple[str, str]], translate: bool) -> list[tuple[str, str]]:
     if not translate:
         return seqs
-    return [(n, _translate(s)) for n, s in seqs]
+    return [(n, _best_frame_translate(s)) for n, s in seqs]
 
 
 def resolve_sequences(request: AlignRequest) -> tuple[list[tuple[str, str]], list[DossierWarning]]:
