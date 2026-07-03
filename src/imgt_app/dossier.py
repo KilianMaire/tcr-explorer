@@ -30,6 +30,7 @@ from .annotator import annotate
 from .cdr_enricher import get_cdr1_cdr2, _gene_to_chain, _cached_v_map, _translate, _SPECIES_STITCHR
 from .reconstructor import reconstruct_tcr
 from .models import IEDBHit
+from .dossier_epitopes import lookup_known_epitopes, resolve_id
 
 
 # Map cdr_enricher's chain codes (TRA/TRB/TRG/TRD) to dossier chain names.
@@ -39,11 +40,6 @@ _CHAIN_NAME: dict[str, str] = {
     "TRG": "gamma",
     "TRD": "delta",
 }
-
-
-def _noop_lookup(gene, cdr3_aa, species):
-    """Default epitope lookup: a no-op. The real one is injected in Task 6."""
-    return [], 0
 
 
 def _echo(value: str, detected: str) -> dict:
@@ -185,7 +181,7 @@ def _summarize(chain: str, genes: dict[str, Optional[GeneCall]], hits: list[IEDB
 
 def build_dossier(
     request: DossierRequest,
-    epitope_lookup: Callable[..., tuple[list[IEDBHit], int]] = _noop_lookup,
+    epitope_lookup: Callable[..., tuple[list[IEDBHit], int]] = lookup_known_epitopes,
 ) -> TCRDossier:
     warnings: list[Warning] = []
     provenance: list[Provenance] = []
@@ -216,18 +212,22 @@ def build_dossier(
             )
 
     elif dt == "id":
-        # Real id resolution (vdjdb:/iedb:) is wired in Task 6.
-        warnings.append(
-            Warning(code="source_unavailable", block="annotation",
-                    message="id resolution is wired in a later task")
-        )
+        resolved = {}
+        if routed.source:
+            _, _, ident = routed.normalized.partition(":")
+            resolved = resolve_id(routed.source, ident)
+        if not resolved:
+            warnings.append(
+                Warning(code="source_unavailable", block="annotation",
+                        message=f"could not resolve id {routed.normalized!r}")
+            )
     else:
         warnings.append(
             Warning(code="unresolved_input_type", block=None,
                     message="query could not be routed")
         )
 
-    # Known epitopes (no-op by default; the real lookup is injected in Task 6).
+    # Known epitopes via the real vdjdb/iedb search path (fully mockable).
     v_for_ep = genes["v"].call if genes["v"] else None
     cdr3_for_ep = junction.cdr3_aa if junction else None
     hits, total = epitope_lookup(v_for_ep, cdr3_for_ep, request.species)
