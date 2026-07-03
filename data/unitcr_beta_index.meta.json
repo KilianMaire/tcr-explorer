@@ -1,0 +1,18 @@
+{
+  "rows_total": 523182,
+  "rows_kept": 261590,
+  "rows_dropped_negative": 261591,
+  "columns": [
+    "cdr3_b_aa",
+    "v_b_gene",
+    "j_b_gene",
+    "epitope_aa",
+    "mhc_class",
+    "mhc_a",
+    "antigen",
+    "antigen_organism",
+    "cluster_id"
+  ],
+  "chain": "beta",
+  "note": "label==1 positives only; OLGA negatives excluded"
+}
