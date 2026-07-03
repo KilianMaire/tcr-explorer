@@ -31,6 +31,7 @@ from .dossier_models import (
     TCRRecord,
     Composition,
 )
+from .query_nl import parse_query
 from .reconstructor import reconstruct_tcr
 from .similarity import cdr3_distance, distance_to_similarity
 
@@ -234,6 +235,45 @@ def _parse_request(request: RecordsRequest) -> tuple[Optional[str], Optional[str
     return cdr3_aa, cdr3_aa_b, v_gene, j_gene, id_lookup
 
 
+def _apply_nl_query(request: RecordsRequest) -> RecordsRequest:
+    """Layer natural-language parsing on top of `request.query` before
+    `_parse_request` runs its single-token classification.
+
+    `parse_query` is the richer front end for free text (prose, mixed
+    species/gene/CDR3 phrases, French or English species words). Its parsed
+    species always overrides `request.species` when present, per the task
+    contract. Its parsed cdr3/gene/id only fill fields the caller did not
+    already set explicitly, so an explicit `cdr3_aa=`/`v_gene=`/`j_gene=`
+    request field is never clobbered. When a record id is parsed, `query` is
+    rewritten to that id so the existing `_ID_RE` id-lookup path in
+    `_parse_request` fires unchanged; otherwise `query` is left as-is so the
+    existing single-token id/gene/cdr3 classification keeps working for
+    queries `parse_query` does not touch (e.g. a bare gene name or sequence
+    it cannot confidently classify)."""
+    if not request.query:
+        return request
+
+    parsed = parse_query(request.query)
+    updates: dict = {}
+
+    if parsed["species"] is not None:
+        updates["species"] = parsed["species"]
+
+    if parsed["record_id"] is not None:
+        updates["query"] = parsed["record_id"]
+    else:
+        if request.cdr3_aa is None and parsed["cdr3_aa"] is not None:
+            updates["cdr3_aa"] = parsed["cdr3_aa"]
+        if request.v_gene is None and parsed["v_gene"] is not None:
+            updates["v_gene"] = parsed["v_gene"]
+        if request.j_gene is None and parsed["j_gene"] is not None:
+            updates["j_gene"] = parsed["j_gene"]
+
+    if not updates:
+        return request
+    return request.model_copy(update=updates)
+
+
 def _species_filter(frame: pd.DataFrame, species: Optional[str]) -> pd.DataFrame:
     if not species:
         return frame
@@ -317,6 +357,7 @@ def _find_neighbours(work: pd.DataFrame, cdr3_aa: str, chains: Optional[set]) ->
 
 def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) -> RecordsResponse:
     warnings: list[DossierWarning] = []
+    request = _apply_nl_query(request)
     query_echo = request.model_dump()
     resolved_path = index_path or _default_records_index_path()
     df = load_records_index(resolved_path)
