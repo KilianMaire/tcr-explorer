@@ -52,18 +52,28 @@ def _translate(nt: str) -> str:
     return "".join(_CODON.get(nt[i:i+3], "?") for i in range(0, len(nt) - 2, 3))
 
 
+def _looks_like_stitchr_data(candidate: Path) -> bool:
+    """True if `candidate` actually holds stitchr germline FASTA (HUMAN/MOUSE/... subdirs),
+    not just any unrelated directory that happens to be named "Data" (macOS' default
+    case-insensitive filesystem can alias this app's own local "data/" cache dir)."""
+    return any(
+        next((candidate / species).glob("*.fasta"), None) is not None
+        for species in ("HUMAN", "MOUSE")
+    )
+
+
 def _stitchr_data_dir() -> Optional[Path]:
     """Return stitchr Data directory, or None if stitchr is not installed."""
     # Stitchr installs to a user or system site-packages directory.
     # We probe sys.path entries for the Data folder it creates.
     for sp in sys.path:
         candidate = Path(sp) / "Data"
-        if candidate.is_dir():
+        if candidate.is_dir() and _looks_like_stitchr_data(candidate):
             return candidate
     # Also try the known pip --user install location
     user_lib = Path.home() / "Library" / "Python"
     for p in user_lib.glob("*/lib/python/site-packages/Data"):
-        if p.is_dir():
+        if p.is_dir() and _looks_like_stitchr_data(p):
             return p
     return None
 
