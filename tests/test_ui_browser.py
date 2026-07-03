@@ -177,3 +177,90 @@ def test_ui_renders_record_cards(server):
     if "nt:" in text:
         assert ("deposited" in text) or ("reconstructed" in text), \
             "a shown nt line should be labeled with its provenance"
+
+
+def test_ui_bare_cdr3_query_shows_exact_records_heading(server):
+    """A bare CDR3 typed into the single query box renders cards under an
+    'Exact records' heading (this is the natural-language single-box path,
+    not a dedicated CDR3 form)."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.fill("#q", "CASSLGTEAFF")
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
+        text = page.locator("#out").inner_text()
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert "Exact records" in text
+
+
+def test_ui_reconstructed_card_contains_queried_cdr3_no_stop_codon(server):
+    """A reconstructed full_aa card must contain the queried CDR3 verbatim and
+    never a stop codon marker, proving the in-frame reconstruction fix (Task 1)
+    reaches the UI."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.fill("#q", "CASSLGTEAFF")
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
+        reconstructed_aa = page.evaluate("""() => {
+            const cards = [...document.querySelectorAll('#out .rec')];
+            for (const c of cards) {
+                const codes = [...c.querySelectorAll('code')];
+                for (const code of codes) {
+                    const next = code.nextElementSibling;
+                    if (next && next.classList.contains('kind')
+                        && next.innerText.includes('reconstructed')) {
+                        return code.innerText;
+                    }
+                }
+            }
+            return null;
+        }""")
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert reconstructed_aa is not None, "expected at least one reconstructed record card"
+    assert "CASSLGTEAFF" in reconstructed_aa
+    assert "*" not in reconstructed_aa, \
+        f"the reconstructed full_aa must contain no internal stop codon, got: {reconstructed_aa}"
+
+
+def test_ui_natural_language_mouse_query_hides_hla_until_toggled(server):
+    """Typing natural language ("mouse <CDR3>") into the single query box
+    drives a mouse-scoped search: the page echoes the detected species, and
+    with the cross-species-MHC toggle off no rendered record shows an HLA
+    allele (a human-organism MHC on a mouse record is filtered server-side
+    unless the toggle is checked)."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        assert page.locator("#xmhc").is_checked() is False, \
+            "the HLA-transgenic toggle must default to off"
+        page.fill("#q", "mouse CASGGTGEQYF")
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#echo').innerText.length > 0", timeout=8000)
+        echo_text = page.locator("#echo").inner_text()
+        out_text = page.locator("#out").inner_text()
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert "mouse" in echo_text.lower(), \
+        f"expected the echoed understanding to name the detected species mouse, got: {echo_text}"
+    assert "HLA" not in out_text, \
+        "no record card should show an HLA allele while the transgenic toggle is off"

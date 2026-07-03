@@ -1027,25 +1027,42 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>
  body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}
  h1{font-size:1.3rem} input,select,button{font-size:1rem;padding:.4rem}
- #q{width:60%} .card{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
+ #q{width:100%;box-sizing:border-box;margin-bottom:.5rem}
+ .searchbar{background:#f7f7fb;border:1px solid #e2e2e8;border-radius:10px;padding:1rem}
+ .searchrow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+ .card{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
  .warn{color:#a15c00} .syn{color:#7a3e00;font-style:italic} table{border-collapse:collapse;width:100%}
  .loading{color:#0b5;font-weight:600} .loading::after{content:'';display:inline-block;width:.7em;height:.7em;margin-left:.4em;border:2px solid #0b5;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle} @keyframes spin{to{transform:rotate(360deg)}} button:disabled{opacity:.6}
  td,th{border:1px solid #eee;padding:.3rem;text-align:left;font-size:.9rem} .muted{color:#666}
  h3{margin:.3rem 0}
+ .echo{background:#eef7ee;border:1px solid #cfe8cf;border-radius:6px;padding:.4rem .7rem;margin:.6rem 0;font-size:.9rem}
+ .section{margin-top:1rem}
  .rec{border:1px solid #e2e2e2;border-radius:6px;padding:.6rem .8rem;margin:.5rem 0;background:#fafafa}
  .rec.neigh{background:#f5f8ff;border-style:dashed}
  .badge{display:inline-block;background:#333;color:#fff;font-size:.75rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;letter-spacing:.03em}
  .kind{color:#666;font-size:.8rem}
+ .xspecies{display:inline-block;background:#ffe6cc;color:#8a4b00;font-size:.72rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;margin-left:.4rem}
  .comp{font-family:monospace;font-size:.85rem;background:#eee;padding:.2rem .4rem;border-radius:4px;display:inline-block}
  .partner{margin-top:.4rem;padding-left:.6rem;border-left:3px solid #ccc}
+ details.advanced{margin-top:2rem;color:#444}
+ details.advanced summary{cursor:pointer;font-size:1.1rem;font-weight:600}
 </style></head><body>
 <h1>TCR Explorer</h1>
-<p class="muted">Ask about a TCR: a gene (TRBV20-1), a CDR3 (CASSLGTEAFF), a sequence, or a V+J+CDR3. Known epitopes are retrieved; similar-TCR epitopes are inferred.</p>
-<form id="f"><input id="q" placeholder="e.g. TRBV20-1" value="TRBV20-1">
-<select id="sp"><option>human</option><option>mouse</option></select>
-<button type="submit">Ask</button></form>
-<div id="out"></div>
-<h1>Align a gene set</h1>
+<p class="muted">Ask anything about a TCR in plain text: a gene, a CDR3, a species plus a CDR3, a V+J+CDR3 phrase, or a database id. Known epitopes are retrieved; similar-TCR epitopes are inferred.</p>
+<div class="searchbar">
+<form id="f">
+<input id="q" placeholder="e.g. mouse CASSGGTGEQYF, TRBV20-1, human CASSLGTEAFF TRBJ2-7, vdjdb:12345" value="TRBV20-1">
+<div class="searchrow">
+<select id="sp"><option value="">auto (detect from text)</option><option value="human">human</option><option value="mouse">mouse</option></select>
+<label><input type="checkbox" id="xmhc"> include HLA-transgenic (cross-species MHC)</label>
+<button type="submit">Search</button>
+</div>
+</form>
+<div id="echo"></div>
+</div>
+<div id="out"><div id="askOut"></div><div id="recOut"></div></div>
+<details class="advanced" open>
+<summary>Align a gene set</summary>
 <p class="muted">Align a germline set (species + chain + segment) or a gene list. V/J/C come from the germline source; D is not available there.</p>
 <form id="af">
 <select id="a_sp"><option>human</option><option>mouse</option></select>
@@ -1054,23 +1071,51 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <label><input type="checkbox" id="a_translate"> translate</label>
 <button type="submit">Align</button></form>
 <div id="a_out"></div>
+</details>
 <script>
-const f=document.getElementById('f'),out=document.getElementById('out');
-f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';out.innerHTML='<p class="loading">Searching...</p>';
- try{
-  const q=document.getElementById('q').value,sp=document.getElementById('sp').value;
-  const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({query:q,species:sp})});
-  if(!r.ok){out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
-  const b=await r.json();out.innerHTML=render(b);
-  try{
-   const rr=await fetch('/v1/tcr/records',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query:q,species:sp})});
-   if(rr.ok){const rb=await rr.json();out.innerHTML+=renderRecords(rb);}
-  }catch(recErr){/* records lookup is additive, never fatal to the ask flow */}
- }catch(err){out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
- finally{btn.disabled=false;btn.textContent=t0;}});
+const f=document.getElementById('f'),askOut=document.getElementById('askOut'),recOut=document.getElementById('recOut'),echoEl=document.getElementById('echo'),xmhc=document.getElementById('xmhc');
+let lastQuery=null,lastSpecies=null;
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function speciesOverride(){const v=document.getElementById('sp').value;return v?v:null;}
+async function refreshRecords(q,spOverride){
+ lastQuery=q;lastSpecies=spOverride;
+ const body={query:q,include_cross_species_mhc:xmhc.checked};
+ if(spOverride)body.species=spOverride;
+ try{
+  const rr=await fetch('/v1/tcr/records',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(body)});
+  if(!rr.ok){return;}
+  const rb=await rr.json();
+  echoEl.innerHTML=renderEcho(rb.query_echo);
+  recOut.innerHTML=renderRecords(rb);
+ }catch(recErr){/* records lookup is additive, never fatal to the ask flow */}
+}
+async function runSearch(q,spOverride){
+ askOut.innerHTML='<p class="loading">Searching...</p>';recOut.innerHTML='';echoEl.innerHTML='';
+ try{
+  const askBody={query:q};
+  if(spOverride)askBody.species=spOverride;
+  const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(askBody)});
+  if(!r.ok){askOut.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';}
+  else{const b=await r.json();askOut.innerHTML=render(b);}
+ }catch(err){askOut.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ await refreshRecords(q,spOverride);
+}
+f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';
+ try{
+  const q=document.getElementById('q').value,sp=speciesOverride();
+  await runSearch(q,sp);
+ }finally{btn.disabled=false;btn.textContent=t0;}});
+xmhc.addEventListener('change',()=>{if(lastQuery!=null)refreshRecords(lastQuery,lastSpecies);});
+function renderEcho(qe){if(!qe)return '';
+ const parts=[];
+ if(qe.species)parts.push('species <b>'+esc(qe.species)+'</b>');
+ if(qe.cdr3_aa)parts.push('CDR3 <code>'+esc(qe.cdr3_aa)+'</code>');
+ if(qe.v_gene)parts.push('V '+esc(qe.v_gene));
+ if(qe.j_gene)parts.push('J '+esc(qe.j_gene));
+ if(!parts.length)return '';
+ return '<div class="echo">Understood: '+parts.join(' &middot; ')+'</div>';}
 function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
  if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} · species: ${esc(d.species)} · status: ${esc(d.status)}</p>`;
   if(d.status==='partial' && !(d.genes&&d.genes.v) && !(d.known_epitopes&&d.known_epitopes.length)){h+='<p class="muted">A CDR3 on its own cannot identify V/D/J. Provide the V and J genes (V+J+CDR3), a gene name, or a full V(D)J sequence to get an annotation.</p>';}
@@ -1101,6 +1146,7 @@ function partnerLine(rec,pairs){if(!pairs||!pairs.length)return '';
  return '';}
 function recordCard(rec,pairs,cls){let h='<div class="rec '+cls+'">';
  h+=sourceBadge(rec.source)+' <span class="muted">'+esc(rec.chain)+' / '+esc(rec.species)+'</span>';
+ if(rec.mhc_is_cross_species)h+='<span class="xspecies">human HLA (transgenic)</span>';
  if(rec.external_url)h+=' <a href="'+esc(rec.external_url)+'" target="_blank" rel="noopener">source</a>';
  h+='<br>aa: <code>'+esc(rec.full_aa||rec.cdr3_aa)+'</code>';
  if(rec.full_aa_kind)h+=' <span class="kind">('+esc(rec.full_aa_kind)+')</span>';
@@ -1125,12 +1171,13 @@ function recordCard(rec,pairs,cls){let h='<div class="rec '+cls+'">';
  h+=partnerLine(rec,pairs);
  return h+'</div>';}
 function renderRecords(data){if(!data)return '';
- let h='<h3>Exact records</h3>';
+ let h='<div class="section"><h3>Exact records</h3>';
  if(data.exact&&data.exact.length){for(const rec of data.exact)h+=recordCard(rec,data.pairs,'exact');}
  else h+='<p class="muted">No exact records found.</p>';
- h+='<h3>Near neighbours</h3>';
+ h+='</div><div class="section"><h3>Near neighbours</h3>';
  if(data.neighbours&&data.neighbours.length){for(const rec of data.neighbours)h+=recordCard(rec,data.pairs,'neigh');}
  else h+='<p class="muted">No near neighbours found.</p>';
+ h+='</div>';
  if(data.warnings&&data.warnings.length){h+='<p class="warn">'+esc(data.warnings.map(w=>w.message||w.code).join('; '))+'</p>';}
  return h;}
 const af=document.getElementById('af'),a_out=document.getElementById('a_out');
