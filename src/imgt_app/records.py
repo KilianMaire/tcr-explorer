@@ -1,4 +1,4 @@
-"""Per-row record builder.
+"""Per-row record builder and the federated retrieval engine.
 
 Turns one harmonized index row (see `records_build.SCHEMA_COLUMNS`) into a
 `TCRRecord`. Deposited sequences already present on the row are kept
@@ -6,14 +6,33 @@ verbatim and tagged "deposited". A value is only reconstructed when it is
 missing on the row and both V and J genes are present; reconstructed
 sequences are tagged "reconstructed" and flip `nt_is_synthetic`. Nothing is
 ever fabricated when the genes are absent.
+
+`retrieve_records` routes a `RecordsRequest` against the vendored harmonized
+index to exact hits, BLOSUM neighbours, gene matches, alpha/beta pairs, or a
+namespaced database id.
 """
 from __future__ import annotations
 
+import os
+import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
-from .cdr_enricher import _translate
-from .dossier_models import Composition, TCRRecord
+import pandas as pd
+
+from . import input_router
+from .cdr_enricher import _gene_to_chain, _translate
+from .dossier_models import (
+    DossierWarning,
+    PairedRecord,
+    RecordsRequest,
+    RecordsResponse,
+    TCRRecord,
+    Composition,
+)
 from .reconstructor import reconstruct_tcr
+from .similarity import cdr3_distance, distance_to_similarity
 
 
 def build_record(
@@ -91,3 +110,270 @@ def build_record(
                 note="reconstructed from V and J germline plus back translated CDR3",
             )
     return rec
+
+
+# ---------------------------------------------------------------------------
+# Retrieval engine
+# ---------------------------------------------------------------------------
+_DEFAULT_RECORDS_INDEX = str(
+    Path(__file__).resolve().parent.parent.parent / "data" / "records_index.parquet"
+)
+_ID_RE = re.compile(r"^(vdjdb|iedb|mcpas|tcr3d):")
+_MAX_NEIGHBOURS = 25
+_CHAIN_LABELS = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}
+
+
+def _default_records_index_path() -> str:
+    return os.environ.get("RECORDS_INDEX_PATH") or _DEFAULT_RECORDS_INDEX
+
+
+@lru_cache(maxsize=4)
+def load_records_index(path: Optional[str] = None) -> Optional[pd.DataFrame]:
+    """Load the vendored harmonized index parquet, or None if it is absent.
+
+    `path` defaults to `RECORDS_INDEX_PATH` env var, else `data/records_index.parquet`.
+    """
+    p = Path(path or _default_records_index_path())
+    if not p.exists():
+        return None
+    return pd.read_parquet(p)
+
+
+def _segment_and_chain(gene: str) -> tuple[Optional[str], Optional[str]]:
+    """Segment letter (V/D/J/C) and chain label for a gene, guarded against
+    `_gene_to_chain`'s default-to-TRB behaviour on unrecognized input: only
+    call it once the raw string is confirmed to start with a real chain
+    prefix (TRA/TRB/TRG/TRD)."""
+    s = (gene or "").strip().upper()
+    if len(s) < 4 or not (s.startswith("TRA") or s.startswith("TRB") or s.startswith("TRG") or s.startswith("TRD")):
+        return None, None
+    chain_code = _gene_to_chain(s)
+    return s[3], _CHAIN_LABELS.get(chain_code)
+
+
+def _safe_normalize_gene(g: str) -> str:
+    try:
+        return input_router._normalize_gene(g)
+    except Exception:
+        return g
+
+
+def _gene_base(g: Optional[str]) -> str:
+    """Normalized gene BASE: strip any '*allele' suffix, uppercase. Mouse
+    genes in the index keep their raw allele-suffixed source strings, so
+    gene matching must never rely on exact string equality (see Task 1
+    binding note)."""
+    if not g:
+        return ""
+    return str(g).strip().upper().split("*")[0]
+
+
+def _gene_base_series(s: pd.Series) -> pd.Series:
+    return s.fillna("").astype(str).str.strip().str.upper().str.split("*").str[0]
+
+
+def _score_num(v) -> float:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return float("-inf")
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return float("-inf")
+
+
+def _parse_request(request: RecordsRequest) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Resolve (cdr3_aa, cdr3_aa_b, v_gene, j_gene, id_lookup) from a request.
+
+    When only `query` is set, classify it with `input_router.route`: a
+    namespaced id (vdjdb:/iedb:/mcpas:/tcr3d:) is an id lookup; a raw_aa of
+    length 8..22 becomes a cdr3_aa search; a gene_name/allele becomes v_gene
+    or j_gene depending on its segment letter.
+    """
+    cdr3_aa = request.cdr3_aa
+    cdr3_aa_b = request.cdr3_aa_b
+    v_gene = request.v_gene
+    j_gene = request.j_gene
+    id_lookup: Optional[str] = None
+
+    if request.query and not (cdr3_aa or cdr3_aa_b or v_gene or j_gene):
+        q = request.query.strip()
+        if _ID_RE.match(q):
+            id_lookup = q
+        else:
+            routed = input_router.route(q, "auto")
+            if routed.detected_type == "id":
+                id_lookup = routed.normalized
+            elif routed.detected_type == "raw_aa" and 8 <= len(routed.normalized) <= 22:
+                cdr3_aa = routed.normalized
+            elif routed.detected_type in ("gene_name", "allele"):
+                gene = routed.normalized
+                seg, _chain = _segment_and_chain(gene)
+                if seg == "V":
+                    v_gene = gene
+                elif seg == "J":
+                    j_gene = gene
+
+    return cdr3_aa, cdr3_aa_b, v_gene, j_gene, id_lookup
+
+
+def _species_filter(frame: pd.DataFrame, species: Optional[str]) -> pd.DataFrame:
+    if not species:
+        return frame
+    norm = species.strip().lower()
+    return frame[frame["species"].fillna("").astype(str).str.strip().str.lower() == norm]
+
+
+def _cdr3_mask(frame: pd.DataFrame, cdr3: str) -> pd.Series:
+    return frame["cdr3_aa"].fillna("").astype(str).str.upper() == cdr3.strip().upper()
+
+
+def _concordance_for(frame: pd.DataFrame, cdr3: Optional[str]) -> int:
+    if not cdr3:
+        return 1
+    matches = frame[_cdr3_mask(frame, cdr3)]
+    n = matches["source"].nunique()
+    return max(int(n), 1)
+
+
+def _sanitize_row(row: dict) -> dict:
+    """Coerce NaN (numpy float, from unpopulated parquet columns) to None.
+    Real index rows carry NaN in unpopulated optional fields; pydantic
+    rejects NaN for Optional[str]."""
+    return {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in row.items()}
+
+
+def _build_exact_records(frame: pd.DataFrame, species_frame: pd.DataFrame) -> list[TCRRecord]:
+    return [
+        build_record(
+            _sanitize_row(row),
+            match_kind="exact",
+            concordance=_concordance_for(species_frame, row.get("cdr3_aa")),
+        )
+        for row in frame.to_dict("records")
+    ]
+
+
+def _find_exact(work: pd.DataFrame, cdr3_aa: Optional[str], v_gene: Optional[str], j_gene: Optional[str]) -> pd.DataFrame:
+    mask = pd.Series(True, index=work.index)
+    if cdr3_aa:
+        mask &= _cdr3_mask(work, cdr3_aa)
+    if v_gene:
+        qbase = _gene_base(_safe_normalize_gene(v_gene))
+        mask &= _gene_base_series(work["v_gene"]) == qbase
+    if j_gene:
+        qbase = _gene_base(_safe_normalize_gene(j_gene))
+        mask &= _gene_base_series(work["j_gene"]) == qbase
+    return work[mask]
+
+
+def _find_neighbours(work: pd.DataFrame, cdr3_aa: str, chains: Optional[set]) -> list[TCRRecord]:
+    cand = work
+    if chains:
+        cand = cand[cand["chain"].isin(chains)]
+    cand = cand[~_cdr3_mask(cand, cdr3_aa)]
+    if cand.empty:
+        return []
+    query = cdr3_aa.strip().upper()
+    dists = cand["cdr3_aa"].map(lambda s: cdr3_distance(query, str(s or "")))
+    max_d = max(float(dists.max()), 1.0)
+    scored = cand.assign(_dist=dists).nsmallest(_MAX_NEIGHBOURS, "_dist")
+    out = []
+    for row, d in zip(scored.to_dict("records"), scored["_dist"]):
+        if str(row.get("cdr3_aa") or "").strip().upper() == query:
+            continue  # never emit a neighbour whose cdr3 equals the query
+        sim = round(distance_to_similarity(float(d), max_d), 4)
+        out.append(build_record(_sanitize_row(row), match_kind="neighbour", similarity=sim))
+    return out
+
+
+def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) -> RecordsResponse:
+    warnings: list[DossierWarning] = []
+    query_echo = request.model_dump()
+    resolved_path = index_path or _default_records_index_path()
+    df = load_records_index(resolved_path)
+
+    if df is None or df.empty:
+        warnings.append(
+            DossierWarning(
+                code="records_index_unavailable",
+                block="records",
+                message=f"records index not found at {resolved_path}",
+            )
+        )
+        return RecordsResponse(query_echo=query_echo, warnings=warnings)
+
+    sources_searched = sorted(str(s) for s in df["source"].dropna().unique().tolist())
+
+    cdr3_aa, cdr3_aa_b, v_gene, j_gene, id_lookup = _parse_request(request)
+
+    # Id lookup: filter by source_record_id verbatim, no neighbours, no species gate.
+    if id_lookup is not None:
+        hit_rows = df[df["source_record_id"].astype(str) == id_lookup]
+        exact = _build_exact_records(hit_rows, df)
+        return RecordsResponse(
+            query_echo=query_echo,
+            exact=exact,
+            total_exact=len(exact),
+            sources_searched=sources_searched,
+            warnings=warnings,
+        )
+
+    work = _species_filter(df, request.species)
+
+    if not (cdr3_aa or v_gene or j_gene):
+        # Nothing to search on (e.g. a bare pair query with no primary field).
+        return RecordsResponse(query_echo=query_echo, sources_searched=sources_searched, warnings=warnings)
+
+    exact_frame = _find_exact(work, cdr3_aa, v_gene, j_gene)
+    exact_frame = exact_frame.assign(_score_sort=exact_frame["score"].map(_score_num))
+    exact_frame = exact_frame.sort_values(["_score_sort", "source"], ascending=[False, True])
+    capped = exact_frame.head(request.top_k)
+    exact_records = _build_exact_records(capped, work)
+
+    neighbours: list[TCRRecord] = []
+    if cdr3_aa and request.include_neighbours:
+        chains_present = set(exact_frame["chain"].dropna().unique().tolist()) or None
+        neighbours = _find_neighbours(work, cdr3_aa, chains_present)
+
+    pairs: list[PairedRecord] = []
+    if cdr3_aa_b:
+        b_frame = _find_exact(work, cdr3_aa_b, None, None)
+        b_records = _build_exact_records(b_frame, work)
+
+        a_by_key: dict[str, list[TCRRecord]] = {}
+        for r in exact_records:
+            a_by_key.setdefault(r.pairing_key, []).append(r)
+        b_by_key: dict[str, list[TCRRecord]] = {}
+        for r in b_records:
+            b_by_key.setdefault(r.pairing_key, []).append(r)
+
+        for key in sorted(set(a_by_key) & set(b_by_key)):
+            for ra in a_by_key[key]:
+                for rb in b_by_key[key]:
+                    if ra.chain == rb.chain:
+                        continue  # two same-chain rows are never a pair
+                    alpha = ra if ra.chain == "alpha" else (rb if rb.chain == "alpha" else None)
+                    beta = ra if ra.chain == "beta" else (rb if rb.chain == "beta" else None)
+                    if alpha is None or beta is None:
+                        continue
+                    pairs.append(PairedRecord(pairing_key=key, source=alpha.source, alpha=alpha, beta=beta))
+
+        if not pairs:
+            exact_records = exact_records + b_records
+            warnings.append(
+                DossierWarning(
+                    code="no_pairing_found",
+                    block="pairs",
+                    message="no shared pairing_key between the two chains",
+                )
+            )
+
+    return RecordsResponse(
+        query_echo=query_echo,
+        exact=exact_records,
+        neighbours=neighbours,
+        pairs=pairs,
+        total_exact=len(exact_records),
+        sources_searched=sources_searched,
+        warnings=warnings,
+    )
