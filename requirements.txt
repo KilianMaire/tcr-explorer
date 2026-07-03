@@ -15,6 +15,7 @@ pandas>=2.0.0
 
 # --- Bioinformatics ---
 biopython==1.85
+tidytcells>=2.0.0
 
 # --- Data I/O ---
 pyarrow>=15.0.0
