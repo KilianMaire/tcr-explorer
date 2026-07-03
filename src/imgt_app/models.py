@@ -216,3 +216,44 @@ class PeptidePredictionResponse(BaseModel):
     candidates: list[PeptideCandidate] = Field(default_factory=list)
     total_screened: int = 0
     total_passing: int = 0
+
+
+# ──────────────────────────────────────────────────────────
+# TCR Allele Assignment Models
+# ──────────────────────────────────────────────────────────
+
+class AlleleCallModel(BaseModel):
+    """A germline allele call: candidate alleles tied at the best identity."""
+    alleles: list[str]
+    identity: float
+    aligned_span: list[int]
+
+
+class DCallModel(AlleleCallModel):
+    """D-gene call. D assignment is inherently noisy (short segment, heavy
+    exonuclease trimming), so callers get an explicit low_confidence flag."""
+    low_confidence: bool
+
+
+class AssignRequest(BaseModel):
+    sequence: str
+    species: Optional[Species] = None
+    chain: Optional[str] = None
+    want_d: bool = False
+
+
+class AssignResponse(BaseModel):
+    input_kind: str
+    species: str
+    chain: Optional[str] = None
+    v_call: Optional[AlleleCallModel] = None
+    j_call: Optional[AlleleCallModel] = None
+    d_call: Optional[DCallModel] = None
+    constant_call: Optional[AlleleCallModel] = None
+    regions: dict[str, float] = Field(default_factory=dict)
+    cdr3_aa: Optional[str] = None
+    v_determinable: bool = True
+    v_reason: Optional[str] = None
+    v_db_inference: Optional[list] = None
+    reconstruction: Optional[dict] = None
+    warnings: list[str] = Field(default_factory=list)

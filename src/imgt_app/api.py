@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import dataclasses
 import io
 import logging
 import math as _math
@@ -33,6 +34,7 @@ from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
 from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
 from .models import (
+    AssignRequest, AssignResponse,
     CDRPredictResponse, GeneRecord, GeneSource, IEDBHit, IngestResponse, NLQueryRequest,
     ReconstructRequest, ReconstructResponse,
     SearchRequest, SearchResponse, Species,
@@ -1051,6 +1053,19 @@ def tcr_align(req: AlignRequest):
     from .msa import align  # local import: avoids import cycles
 
     return align(req)
+
+
+@app.post("/v1/tcr/assign", response_model=AssignResponse)
+def tcr_assign(req: AssignRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier above: assign may
+    # resolve germline sets from disk, so it runs in FastAPI's threadpool rather
+    # than blocking the event loop.
+    from . import tcr_align  # local import: avoids import cycles
+
+    result = tcr_align.assign(
+        req.sequence, species=req.species, chain=req.chain, want_d=req.want_d
+    )
+    return AssignResponse(**dataclasses.asdict(result))
 
 
 @app.post("/v1/tcr/ask", response_model=AskResponse)
