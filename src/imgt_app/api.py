@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
@@ -989,3 +989,49 @@ def tcr_ask(req: AskRequest):
     from .ask import answer  # local import: avoids circular import
 
     return answer(req)
+
+
+_UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>TCR Explorer</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+ body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}
+ h1{font-size:1.3rem} input,select,button{font-size:1rem;padding:.4rem}
+ #q{width:60%} .card{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
+ .warn{color:#a15c00} .syn{color:#7a3e00;font-style:italic} table{border-collapse:collapse;width:100%}
+ td,th{border:1px solid #eee;padding:.3rem;text-align:left;font-size:.9rem} .muted{color:#666}
+ h3{margin:.3rem 0}
+</style></head><body>
+<h1>TCR Explorer</h1>
+<p class="muted">Ask about a TCR: a gene (TRBV20-1), a CDR3 (CASSLGTEAFF), a sequence, or a V+J+CDR3. Known epitopes are retrieved; similar-TCR epitopes are inferred.</p>
+<form id="f"><input id="q" placeholder="e.g. TRBV20-1" value="TRBV20-1">
+<select id="sp"><option>human</option><option>mouse</option></select>
+<button type="submit">Ask</button></form>
+<div id="out"></div>
+<script>
+const f=document.getElementById('f'),out=document.getElementById('out');
+f.addEventListener('submit',async e=>{e.preventDefault();out.innerHTML='<p class="muted">...</p>';
+ const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({query:document.getElementById('q').value,species:document.getElementById('sp').value})});
+ const b=await r.json();out.innerHTML=render(b);});
+function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
+ if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} · species: ${esc(d.species)} · status: ${esc(d.status)}</p>`;
+  if(d.genes&&d.genes.v){h+=`<p>V: ${esc(d.genes.v.call)} (${esc(d.genes.v.score_method)})</p>`;}
+  if(d.regions){h+='<p>';for(const k of ['cdr1','cdr2','cdr3']){if(d.regions[k]&&d.regions[k].aa)h+=`${k}: <code>${esc(d.regions[k].aa)}</code> `;}h+='</p>';}
+  if(d.junction&&d.junction.cdr3_nt_is_synthetic){h+=`<p class="syn">cdr3_nt is synthetic (back-translated)</p>`;}
+  if(d.known_epitopes&&d.known_epitopes.length){h+='<h3>Known epitopes (retrieved)</h3><table><tr><th>epitope</th><th>MHC</th><th>antigen</th></tr>';
+   for(const e of d.known_epitopes)h+=`<tr><td>${esc(e.epitope_sequence)}</td><td>${esc(e.mhc_allele)}</td><td>${esc(e.antigen_name)}</td></tr>`;h+='</table>';}
+  if(d.neighbours&&d.neighbours.length){h+=neighTable(d.neighbours);}
+  if(d.warnings&&d.warnings.length){h+='<p class="warn">warnings: '+d.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}}
+ if(b.neighbours_result){h+=neighTable(b.neighbours_result.neighbours);}
+ if(b.search_result){h+=`<p class="muted">search returned ${b.search_result.total} records</p>`;}
+ return h+'</div>';}
+function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">no similar TCRs</p>';
+ let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
+ for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
+</script></body></html>"""
+
+
+@app.get("/ui", response_class=HTMLResponse)
+def ui() -> HTMLResponse:
+    return HTMLResponse(_UI_HTML)
