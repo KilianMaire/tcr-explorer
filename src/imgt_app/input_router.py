@@ -30,7 +30,9 @@ def _normalize_gene(q: str) -> str:
     try:
         import tidytcells as tt
 
-        fixed = tt.tr.standardize(q, enforce_functional=False, log_failures=False)
+        # on_fail="keep" returns the input unchanged on failure (no FutureWarning)
+        # and is type-correct (Optional[str]), unlike the removed log_failures bool.
+        fixed = tt.tr.standardize(symbol=q, on_fail="keep")
         return fixed or q.upper()
     except Exception:
         return q.upper()
