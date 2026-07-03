@@ -137,6 +137,7 @@ def test_ui_align_form_renders_colored_aa_nt(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
+        page.click("details.advanced summary")  # align panel is collapsed by default
         page.select_option("#a_sp", "mouse")
         page.fill("#a_chain", "TRB")
         page.select_option("#a_seg", "J")
@@ -291,3 +292,28 @@ def test_ui_reconstruction_panel_builds_full_chain(server):
     assert "EDLRNVTPP" in text, "the mouse constant region should be appended"
     assert "*01" in text, "the germline allele used should be reported"
     assert "oracle-validated" in text, "the constant-region provenance should be shown"
+
+
+def test_ui_reconstruction_infers_vj_from_cdr3_alone(server):
+    """Leaving V and J blank infers them from the records index and still
+    builds a full chain, clearly labeled as inferred."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.select_option("#rc_sp", "human")
+        page.fill("#rc_v", "")
+        page.fill("#rc_j", "")
+        page.fill("#rc_cdr3", "CASSLGTEAFF")
+        page.click("#rcf button")
+        page.wait_for_function(
+            "document.querySelector('#rc_out').innerText.includes('full chain')", timeout=8000)
+        text = page.locator("#rc_out").inner_text()
+        browser.close()
+    assert errors == [], f"reconstruction (infer) UI console errors: {errors}"
+    assert "inferred" in text.lower(), "the inferred V/J should be disclosed"
+    assert "TRBV4-1" in text and "TRBJ1-1" in text, "the inferred genes should be shown"
+    assert "CASSLGTEAFF" in text, "the CDR3 should appear in the reconstructed chain"
