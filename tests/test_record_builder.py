@@ -1,5 +1,4 @@
 from imgt_app import records
-from imgt_app.dossier_models import TCRRecord
 
 
 def _row(**kw):
