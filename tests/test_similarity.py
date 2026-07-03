@@ -16,6 +16,25 @@ def test_self_match_is_nearest(monkeypatch):
     assert any(w.code == "tcrdist_unavailable" for w in warns)
 
 
+def test_engine_stays_blosum_and_warns_even_if_tcrdist_importable(monkeypatch):
+    # Even if tcrdist3 is importable, scoring is NOT wired to it, so the engine
+    # must stay honest ("blosum_cdr3") and still carry the downgrade warning.
+    monkeypatch.setattr(similarity, "tcrdist3_available", lambda: True)
+    neigh, engine, ncand, warns = find_similar_tcrs(
+        "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", top_k=3, index_path=FIX)
+    assert engine == "blosum_cdr3"
+    assert any(w.code == "tcrdist_unavailable" for w in warns)
+
+
+def test_non_human_species_returns_empty_with_warning():
+    neigh, engine, ncand, warns = find_similar_tcrs(
+        "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", species="mouse", index_path=FIX)
+    assert neigh == []
+    assert engine == "none"
+    assert ncand == 0
+    assert any(w.code == "species_unsupported" for w in warns)
+
+
 def test_distance_zero_for_identical():
     assert cdr3_distance("CASSLGTEAFF", "CASSLGTEAFF") == 0.0
 

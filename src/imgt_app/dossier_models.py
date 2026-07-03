@@ -14,6 +14,7 @@ WarningCode = Literal[
     "ambiguous_alphabet", "unresolved_input_type", "d_segment_unresolved",
     "aa_annotation_limited", "back_translated_nt", "partial_annotation", "timeout",
     "tcrdist_unavailable", "similarity_index_unavailable", "no_reference_candidates",
+    "species_unsupported",
 ]
 ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours"]
 ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb", "unitcr", "tcrdist", "blosum_cdr3"]
@@ -65,6 +66,10 @@ class Neighbour(BaseModel):
     v_b_gene: str
     j_b_gene: str
     similarity: float
+    """Within-query relative similarity: normalised to the per-query candidate
+    maximum distance, so only similarity==1.0 (identical) is absolute. Callers
+    comparing across queries should threshold on the absolute `distance` field,
+    not on `similarity`."""
     distance: float
     epitope_aa: Optional[str] = None
     mhc_class: Optional[str] = None

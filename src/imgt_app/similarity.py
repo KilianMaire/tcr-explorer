@@ -80,6 +80,17 @@ def find_similar_tcrs(
     index_path: Optional[str] = None,
 ) -> tuple[list[Neighbour], str, int, list[DossierWarning]]:
     warnings: list[DossierWarning] = []
+    # The vendored index is human beta only. We never score a non-human query
+    # against it; returning human neighbours for a mouse query would be dishonest.
+    if species != "human":
+        warnings.append(
+            DossierWarning(
+                code="species_unsupported",
+                block="neighbours",
+                message=f"similarity index is human beta only; species '{species}' not supported",
+            )
+        )
+        return [], "none", 0, warnings
     path = index_path or os.environ.get("UNITCR_INDEX_PATH") or _DEFAULT_INDEX
     df = _load_index(path)
     if df is None:
@@ -113,16 +124,23 @@ def find_similar_tcrs(
     # whether tcrdist3 happens to be importable -- the label must match the distance
     # actually used, not the distance that would ideally be used.
     engine = "blosum_cdr3"
-    if not tcrdist3_available():
+    # Emit the downgrade warning whenever the authoritative tcrdist engine was NOT
+    # the one used to score -- key on the engine actually used, not on whether
+    # tcrdist3 merely happens to be importable. While `engine` is hardcoded to
+    # "blosum_cdr3" the tcrdist path is never authoritative, so this always fires.
+    if engine != "tcrdist":
         warnings.append(
             DossierWarning(
                 code="tcrdist_unavailable",
                 block="neighbours",
-                message="tcrdist3 not installed; used the bundled BLOSUM CDR3 distance",
+                message="tcrdist3 authoritative scoring not wired; used the bundled BLOSUM CDR3 distance",
             )
         )
 
     dists = cand["cdr3_b_aa"].map(lambda s: cdr3_distance(cdr3, s))
+    # NOTE: similarity below is within-query relative -- normalised to this
+    # query's candidate maximum distance, so only similarity==1.0 (identical) is
+    # absolute. Cross-query comparisons must threshold on the `distance` field.
     max_d = max(float(dists.max()), 1.0)
     # NOTE: itertuples() below needs plain identifier column names; a leading
     # underscore (e.g. "_dist") is not a valid namedtuple field, so pandas

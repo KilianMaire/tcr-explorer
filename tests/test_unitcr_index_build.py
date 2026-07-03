@@ -1,6 +1,22 @@
+import json
+
 import pandas as pd
+import pytest
 from pathlib import Path
 from scripts.build_unitcr_index import build_index
+
+_META = Path("data/unitcr_beta_index.meta.json")
+_PARQUET = Path("data/unitcr_beta_index.parquet")
+
+
+@pytest.mark.skipif(not _META.exists(), reason="shipped index metadata not present")
+def test_shipped_index_metadata_documents_negative_exclusion():
+    meta = json.loads(_META.read_text())
+    assert meta["rows_dropped_negative"] > 0
+    assert "negative" in meta["note"].lower()
+    df = pd.read_parquet(_PARQUET)
+    # negatives must not be reconstructable: no label column ships.
+    assert "label" not in df.columns
 
 def _make_tiny(path):
     rows = [
