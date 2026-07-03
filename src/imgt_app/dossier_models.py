@@ -5,7 +5,7 @@ from .models import IEDBHit
 
 InputType = Literal["auto", "raw_nt", "raw_aa", "gene_name", "allele", "id"]
 ModeType = Literal["fast", "full"]
-IncludeFlag = Literal["sequences", "germline"]
+IncludeFlag = Literal["sequences", "germline", "neighbours"]
 ChainType = Literal["alpha", "beta", "gamma", "delta", "unknown"]
 SpeciesType = Literal["human", "mouse"]
 DossierStatus = Literal["complete", "partial"]
