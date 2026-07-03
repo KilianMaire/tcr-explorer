@@ -28,7 +28,7 @@ import re
 from functools import lru_cache
 from typing import Optional
 
-from .constant_regions import constant_aa
+from .constant_regions import constant_aa, constant_source as _constant_provenance
 from .cdr_enricher import (
     _SPECIES_STITCHR,
     _gene_to_chain,
@@ -362,10 +362,7 @@ def reconstruct_tcr(
     chain_name = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}.get(chain, "")
     constant = constant_aa(chain_name, species) if full_aa else None
     full_chain_aa = (full_aa + constant) if (full_aa and constant) else None
-    constant_source = (
-        f"curated membrane-bound {chain_name} constant ({species.lower()})"
-        if constant else None
-    )
+    constant_source = _constant_provenance(chain_name, species) if constant else None
 
     return {
         "v_gene": v_gene_base,
