@@ -6,18 +6,25 @@ Algorithm
 1. Load V-REGION nt from stitchr IMGT data (same source as cdr_enricher).
 2. Load J-REGION nt from stitchr IMGT data (~JOINING segments).
 3. Back-translate CDR3 amino-acid sequence using human-optimised codons.
-4. Assemble junction:
-   - V_nt[:-3]   : V-REGION up to but NOT including Cys104 codon
-                   (Cys104 is the first residue of the VDJdb CDR3)
-   - CDR3_nt     : back-translated full CDR3 (Cys104 … Phe/Trp118)
-   - J_nt[fw+3:] : J-REGION AFTER the conserved Phe/Trp codon
-                   (Phe/Trp118 is already the last residue of CDR3)
+4. Assemble junction, codon-aligned:
+   - _v_cys_cut(V_nt)     : locates the nt offset of the conserved Cys104
+                             codon in V_nt (V-REGION length is not always a
+                             multiple of 3, so this is NOT simply len-3)
+   - V_nt[:cut]           : V-REGION up to but NOT including Cys104 codon
+                             (Cys104 is the first residue of the VDJdb CDR3)
+   - CDR3_nt              : back-translated full CDR3 (Cys104 … Phe/Trp118)
+   - _j_frame_and_fw(J_nt): detects J's coding frame (not always frame 0)
+                             and the conserved Phe/Trp118 codon within it
+   - J_nt[fw+3:]          : J-REGION AFTER the conserved Phe/Trp codon,
+                             in the detected frame
+                             (Phe/Trp118 is already the last residue of CDR3)
 
 IMGT CDR3 boundaries used here follow VDJdb convention:
   CDR3 = Cys104 … Phe/Trp118  (boundaries inclusive)
 """
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -108,16 +115,76 @@ def _cached_j_map(chain: str, species_str: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Junction helpers
 # ---------------------------------------------------------------------------
-def _find_fw_codon_offset(nt: str) -> Optional[int]:
+def _v_cys_cut(v_nt: str) -> int:
     """
-    Return the byte offset of the first Phe (F) or Trp (W) codon in *nt*.
-    Returns None if no F/W codon is found.
+    Return the nt index of the conserved Cys104 codon start in *v_nt*, so that
+    v_nt[:_v_cys_cut(v_nt)] is codon-aligned and ends immediately BEFORE
+    Cys104. The stitchr V-REGION sequence is not guaranteed to be a whole
+    number of codons long (e.g. TRBV4-1 is 287 nt), so the naive "drop the
+    last 3 nt" trick used previously is not codon-aligned in general.
+
+    Cys104 is found by translating v_nt in frame 0 and taking the LAST "C"
+    residue within the final 8 residues of the translation (the conserved
+    Cys that begins the CDR3 sits right at the end of FR3/V-REGION).
     """
-    for i in range(0, len(nt) - 2, 3):
-        aa = _CODON.get(nt[i : i + 3].upper(), "?")
-        if aa in ("F", "W"):
-            return i
-    return None
+    aa = _translate(v_nt)
+    tail_start = max(0, len(aa) - 8)
+    cys_index = None
+    for i in range(len(aa) - 1, tail_start - 1, -1):
+        if aa[i] == "C":
+            cys_index = i
+            break
+    if cys_index is not None:
+        return cys_index * 3
+    # Fallback: drop the trailing partial codon plus the last full codon
+    # (codon-aligned version of the old "v_nt[:-3]" behavior).
+    return len(v_nt) - (len(v_nt) % 3) - 3
+
+
+def _j_frame_and_fw(j_nt: str) -> tuple[int, int]:
+    """
+    Determine the coding frame of a J-REGION nt sequence and locate the
+    conserved Phe/Trp118 codon within it.
+
+    stitchr J-REGION entries are not always frame 0 (e.g. TRBJ1-1 codes in
+    frame 2), so each of the 3 frames is translated and scored: the frame
+    whose translation has an F or W followed within 2 residues by a G-x-G
+    motif, with no stop codon before that motif, is preferred.
+
+    Returns (frame, fw_nt_index) where fw_nt_index is the nt offset (within
+    j_nt) of the F/W codon's first base, or (0, -1) if no such motif is
+    found in any frame.
+    """
+    fw_gxg_re = re.compile(r"[FW].{0,2}?G.G")
+
+    candidates: list[tuple[int, int, int]] = []  # (frame, fw_res_index, n_stops)
+    fewest_stops_frame = 0
+    fewest_stops = None
+
+    for frame in (0, 1, 2):
+        translated = _translate(j_nt[frame:])
+        n_stops = translated.count("*")
+        if fewest_stops is None or n_stops < fewest_stops:
+            fewest_stops = n_stops
+            fewest_stops_frame = frame
+
+        match = fw_gxg_re.search(translated)
+        if match is None:
+            continue
+        fw_res_index = match.start()
+        # No stop codon before the motif.
+        if "*" in translated[:fw_res_index]:
+            continue
+        candidates.append((frame, fw_res_index, n_stops))
+
+    if candidates:
+        # Prefer a candidate frame with no stop codons at all; otherwise
+        # keep the first match found (frame order 0, 1, 2).
+        clean = [c for c in candidates if c[2] == 0]
+        frame, fw_res_index, _ = clean[0] if clean else candidates[0]
+        return frame, fw_res_index * 3 + frame
+
+    return fewest_stops_frame, -1
 
 
 # ---------------------------------------------------------------------------
@@ -166,14 +233,16 @@ def reconstruct_tcr(
     full_aa: Optional[str] = None
 
     if v_nt and j_nt:
-        # V-REGION from stitchr ends at Cys104 (inclusive).
-        # VDJdb CDR3 starts with that Cys104 → drop V's last codon to avoid duplication.
-        v_prefix = v_nt[:-3] if len(v_nt) >= 3 else v_nt
+        # V-REGION from stitchr is not guaranteed codon-aligned to Cys104
+        # (e.g. TRBV4-1 is 287 nt), so find the Cys104 codon boundary
+        # directly rather than assuming the sequence ends 3 nt after it.
+        v_prefix = v_nt[: _v_cys_cut(v_nt)]
 
-        # VDJdb CDR3 ends with Phe/Trp118 = first coding codon of J segment.
-        # Drop that first F/W codon from J to avoid duplication.
-        fw_offset = _find_fw_codon_offset(j_nt)
-        j_suffix = j_nt[fw_offset + 3 :] if fw_offset is not None else j_nt
+        # J-REGION coding frame is not always frame 0 (e.g. TRBJ1-1 codes
+        # in frame 2), so detect the frame and the conserved Phe/Trp118
+        # codon within it before slicing.
+        frame, fw_nt = _j_frame_and_fw(j_nt)
+        j_suffix = j_nt[fw_nt + 3 :] if fw_nt >= 0 else j_nt[frame:]
 
         full_nt = v_prefix + cdr3_nt + j_suffix
         full_aa = _translate(full_nt).rstrip("*") or None
