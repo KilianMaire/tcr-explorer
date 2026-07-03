@@ -8,7 +8,7 @@ fallback used when IgBLAST is absent.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
-from .cdr_enricher import _cached_v_map, _translate, _SPECIES_STITCHR
+from .cdr_enricher import _cached_v_map, _SPECIES_STITCHR
 from .reconstructor import _cached_j_map
 
 _K = 7
@@ -54,7 +54,7 @@ def annotate_sequence(seq: str, species: str, is_protein: bool) -> KmerAnnotatio
     qk = _kmers(seq)
     # Try each chain's V map; the chain with the best V hit wins.
     best_overall = (None, 0.0, None)  # (v_gene, score, chain_key)
-    for chain_key, chain_name in _CHAINS.items():
+    for chain_key in _CHAINS:
         vmap = _cached_v_map(chain_key, sp)
         g, sc = _best(qk, vmap)
         if sc > best_overall[1]:
