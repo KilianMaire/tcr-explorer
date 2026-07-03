@@ -99,8 +99,9 @@ def resolve_sequences(request: AlignRequest) -> tuple[list[tuple[str, str]], lis
 
     if request.genes:
         seqs: list[tuple[str, str]] = []
+        from .input_router import _normalize_gene
         for name in request.genes:
-            base = name.split("*")[0].upper()
+            base = _normalize_gene(name).split("*")[0].upper()
             chain = base[:3]
             seg = base[3:4]  # V/D/J/C letter
             sp = _SPECIES_STITCHR.get(request.species.lower(), "HUMAN")

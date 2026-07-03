@@ -221,9 +221,17 @@ def align(request: AlignRequest) -> MSAResult:
     engine = "center_star"
     aligned = None
     if clustalo_available():
-        aligned = _run_clustalo(seqs)
+        try:
+            aligned = _run_clustalo(seqs)
+        except (subprocess.SubprocessError, OSError):
+            aligned = None
         if aligned:
             engine = "clustalo"
+        else:
+            # clustalo was present but failed or timed out; degrade to the bundled
+            # engine and record that the authoritative backend was attempted.
+            warnings.append(DossierWarning(code="alignment_failed", block="alignment",
+                                           message="clustalo failed; used the bundled center-star aligner"))
     if not aligned:
         try:
             aligned = center_star_align(seqs, request.seq_type)
