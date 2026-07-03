@@ -23,3 +23,8 @@ tqdm>=4.66.0
 
 # --- Dashboard & frontend ---
 streamlit>=1.35.0
+
+# --- MCP server (stdio) ---
+mcp>=1.0.0
+# FastAPI 0.116 needs starlette<0.48; mcp's SSE transport (wants newer starlette) is unused (stdio).
+starlette>=0.40,<0.48
