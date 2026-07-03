@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -79,7 +80,7 @@ def find_similar_tcrs(
     index_path: Optional[str] = None,
 ) -> tuple[list[Neighbour], str, int, list[DossierWarning]]:
     warnings: list[DossierWarning] = []
-    path = index_path or _DEFAULT_INDEX
+    path = index_path or os.environ.get("UNITCR_INDEX_PATH") or _DEFAULT_INDEX
     df = _load_index(path)
     if df is None:
         warnings.append(
