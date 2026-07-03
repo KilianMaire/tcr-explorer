@@ -8,6 +8,7 @@ A value that cannot be filled is None.
 from __future__ import annotations
 
 import json
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -212,7 +213,17 @@ def _iedb_flatten(path: str) -> pd.DataFrame:
     top = raw.columns.get_level_values(0)
     second = raw.columns.get_level_values(1)
 
-    receptor_cols = {second[i]: i for i in range(len(top)) if top[i] in ("Receptor", "Reference", "Epitope")}
+    # The receptor-level groups (Receptor / Reference / Epitope / Assay) share
+    # several second-level names across groups, most importantly "IEDB IRI"
+    # (present under both Reference and Epitope) and "MHC Allele Names" (only
+    # under Assay). Keying on the second-level name alone silently collapses
+    # those into one column and drops Assay entirely, so we key on the
+    # (first_level, second_level) pair instead.
+    receptor_cols = {
+        (top[i], second[i]): i
+        for i in range(len(top))
+        if top[i] in ("Receptor", "Reference", "Epitope", "Assay")
+    }
     chain1_cols = {second[i]: i for i in range(len(top)) if top[i] == "Chain 1"}
     chain2_cols = {second[i]: i for i in range(len(top)) if top[i] == "Chain 2"}
     return raw, receptor_cols, chain1_cols, chain2_cols
@@ -279,21 +290,25 @@ def harmonize_iedb(csv_path: str) -> pd.DataFrame:
     rows: list[dict] = []
     for _, values in raw.iterrows():
 
-        def rget(name: str) -> Optional[str]:
-            idx = receptor_cols.get(name)
+        def rget(group: str, name: str) -> Optional[str]:
+            idx = receptor_cols.get((group, name))
             if idx is None:
                 return None
             return _na(values.iloc[idx])
 
-        receptor_id = rget("IEDB Receptor ID")
+        receptor_id = rget("Receptor", "IEDB Receptor ID")
         if not receptor_id:
             continue
         pairing_key = f"iedb:{receptor_id}"
-        epitope = rget("Name")
-        antigen = rget("Source Molecule")
-        antigen_organism = rget("Source Organism")
-        mhc_a = rget("MHC Allele Names")
-        iri = rget("IEDB IRI")
+        epitope = rget("Epitope", "Name")
+        antigen = rget("Epitope", "Source Molecule")
+        antigen_organism = rget("Epitope", "Source Organism")
+        mhc_a = rget("Assay", "MHC Allele Names")
+        # "Group IRI" is the receptor-level IEDB link (resolves to
+        # /receptor/<id>); the Reference and Epitope groups each carry their
+        # own "IEDB IRI" pointing elsewhere (/reference/... , /epitope/...)
+        # and must never be used as the receptor's external_url.
+        iri = rget("Receptor", "Group IRI")
 
         for cols in (chain1_cols, chain2_cols):
             rec = _iedb_chain_row(
@@ -481,7 +496,10 @@ def _resolve_vdjdb_path(raw_dir: Path) -> Optional[str]:
         with zipfile.ZipFile(zpath) as zf:
             members = [n for n in zf.namelist() if n.endswith("vdjdb.slim.txt")]
             if members:
-                extracted = raw_dir / "_vdjdb_slim_extracted.txt"
+                # raw_dir is a read-only snapshot directory; extract into a
+                # temp dir instead of writing back into it.
+                tmp_dir = Path(tempfile.mkdtemp(prefix="imgt_vdjdb_"))
+                extracted = tmp_dir / "_vdjdb_slim_extracted.txt"
                 extracted.write_bytes(zf.read(members[0]))
                 return str(extracted)
     flat = raw_dir / "vdjdb_slim.txt"
@@ -495,7 +513,10 @@ def _resolve_iedb_path(raw_dir: Path) -> Optional[str]:
     if zips:
         with zipfile.ZipFile(zips[0]) as zf:
             if "tcr_full_v3.csv" in zf.namelist():
-                extracted = raw_dir / "_iedb_tcr_extracted.csv"
+                # raw_dir is a read-only snapshot directory; extract into a
+                # temp dir instead of writing back into it.
+                tmp_dir = Path(tempfile.mkdtemp(prefix="imgt_iedb_"))
+                extracted = tmp_dir / "_iedb_tcr_extracted.csv"
                 extracted.write_bytes(zf.read("tcr_full_v3.csv"))
                 return str(extracted)
     flat = raw_dir / "iedb_tcr.csv"
@@ -507,32 +528,27 @@ def _resolve_iedb_path(raw_dir: Path) -> Optional[str]:
 def build_index(raw_dir: str, out_parquet: str, out_meta: str) -> dict:
     raw_path = Path(raw_dir)
     frames: list[pd.DataFrame] = []
-    per_source: dict[str, int] = {}
 
     vdjdb_path = _resolve_vdjdb_path(raw_path)
     if vdjdb_path:
         df = harmonize_vdjdb(vdjdb_path)
         frames.append(df)
-        per_source["vdjdb"] = len(df)
 
     iedb_path = _resolve_iedb_path(raw_path)
     if iedb_path:
         df = harmonize_iedb(iedb_path)
         frames.append(df)
-        per_source["iedb"] = len(df)
 
     mcpas_path = raw_path / "mcpas.csv"
     if mcpas_path.exists():
         df = harmonize_mcpas(str(mcpas_path))
         frames.append(df)
-        per_source["mcpas"] = len(df)
 
     complexes_path = raw_path / "tcr3d_complexes.tsv"
     chain_path = raw_path / "tcr3d_chain.tsv"
     if complexes_path.exists():
         df = harmonize_tcr3d(str(complexes_path), str(chain_path))
         frames.append(df)
-        per_source["tcr3d"] = len(df)
 
     combined = pd.concat(frames, ignore_index=True) if frames else _empty_frame()
     combined = combined[SCHEMA_COLUMNS]

@@ -15,6 +15,8 @@ def test_vdjdb_harmonizes_to_schema():
     assert list(df.columns) == rb.SCHEMA_COLUMNS
     assert (df["source"] == "vdjdb").all()
     assert df["chain"].isin(["alpha", "beta"]).all()
+    # the fixture must exercise both chain branches, not just alpha
+    assert set(df["chain"].unique()) == {"alpha", "beta"}
     # cdr3 is uppercased and stripped
     assert df["cdr3_aa"].str.strip().eq(df["cdr3_aa"]).all()
     assert df["cdr3_aa"].str.upper().eq(df["cdr3_aa"]).all()
@@ -29,6 +31,12 @@ def test_iedb_explodes_two_chains_sharing_pairing_key():
     assert any(s == {"alpha", "beta"} for s in paired), "expected at least one paired receptor"
     # IEDB carries deposited protein sequence for at least some rows
     assert df["full_aa"].notna().any()
+    # the Assay-group "MHC Allele Names" column must be reachable, not just
+    # the (unrelated) Receptor/Reference/Epitope columns
+    assert df["mhc_a"].notna().any()
+    # external_url must resolve to the receptor, never to the epitope IRI
+    # that happens to share the same second-level column name
+    assert not df["external_url"].str.contains("/epitope/").any()
 
 
 def test_mcpas_deposited_cdr3_nt_is_kept():
