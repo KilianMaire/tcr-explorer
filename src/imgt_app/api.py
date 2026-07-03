@@ -1100,7 +1100,8 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  .xspecies{display:inline-block;background:#ffe6cc;color:#8a4b00;font-size:.72rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;margin-left:.4rem}
  .comp{font-family:monospace;font-size:.85rem;background:#eee;padding:.2rem .4rem;border-radius:4px;display:inline-block}
  .partner{margin-top:.4rem;padding-left:.6rem;border-left:3px solid #ccc}
- .recon{margin-top:1.5rem} .recon h2{margin:.2rem 0 .4rem;font-size:1.25rem} #rc_cdr3{width:100%;box-sizing:border-box;margin-bottom:.5rem} #rc_v,#rc_j{flex:1;min-width:9rem}
+ .recon{margin-top:1.5rem} .recon h2{margin:.2rem 0 .4rem;font-size:1.25rem} #rc_seq{width:100%;box-sizing:border-box;margin-bottom:.5rem} #rc_v,#rc_j{flex:1;min-width:9rem}
+ .db-inference{margin-top:.6rem;padding-top:.4rem;border-top:1px dashed #ccc} .db-inference h4{margin:.2rem 0;font-size:.95rem}
  details.advanced{margin-top:2rem;color:#444}
  details.advanced summary{cursor:pointer;font-size:1.1rem;font-weight:600}
 </style></head><body>
@@ -1119,15 +1120,15 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 </div>
 <div id="out"><div id="askOut"></div><div id="recOut"></div></div>
 <div class="searchbar recon">
-<h2>Reconstruct a full chain</h2>
-<p class="muted">Build the full membrane-bound chain from a CDR3. V and J are optional: leave them blank and they are inferred from database records that carry the exact same CDR3 (most common pairing, reported as inferred). The variable domain comes from IMGT germline; the constant region is vendored (mouse is oracle-validated, human is not). The allele defaults to *01 unless you write it into the gene name (e.g. TRAV7-4*02).</p>
+<h2>Assign TCR alleles</h2>
+<p class="muted">Paste a CDR3, a V region, or a full chain (nucleotide or amino acid). It is aligned against IMGT germline and called at the allele level: V, J, D and constant calls with identity, aligned span and the full tie set; per region identity; the extracted CDR3; and, when enough sequence is present, a reconstructed full chain (mouse constant is oracle-validated, human is not). A bare CDR3 has no framework to call a V allele from, so it is refused and backed instead by a database frequency inference, clearly labeled as weaker. Fill in both V and J below to skip assignment and reconstruct directly from those explicit genes (allele defaults to *01 unless written into the gene name, e.g. TRAV7-4*02).</p>
 <form id="rcf">
-<input id="rc_cdr3" placeholder="CDR3 aa (required) e.g. CASSLGTEAFF" value="CASSLGTEAFF">
+<input id="rc_seq" placeholder="paste a CDR3, a V region, or a full chain (nucleotide or amino acid), e.g. CASSLGTEAFF">
 <div class="searchrow">
 <select id="rc_sp"><option>human</option><option>mouse</option></select>
-<input id="rc_v" placeholder="V gene (optional, inferred if blank)">
-<input id="rc_j" placeholder="J gene (optional, inferred if blank)">
-<button type="submit">Reconstruct</button>
+<input id="rc_v" placeholder="V gene (optional; set both V and J to reconstruct directly)">
+<input id="rc_j" placeholder="J gene (optional; set both V and J to reconstruct directly)">
+<button type="submit">Assign</button>
 </div>
 </form>
 <div id="rc_out"></div>
@@ -1284,15 +1285,23 @@ function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
  return h+'</div>';}
 const rcf=document.getElementById('rcf'),rc_out=document.getElementById('rc_out');
-rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Reconstructing...';rc_out.innerHTML='<p class="loading">Reconstructing...</p>';
+rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Working...';rc_out.innerHTML='<p class="loading">Working...</p>';
  try{
-  const r=await fetch('/reconstruct',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({v_gene:document.getElementById('rc_v').value,
-    j_gene:document.getElementById('rc_j').value,
-    cdr3_aa:document.getElementById('rc_cdr3').value,
-    species:document.getElementById('rc_sp').value})});
-  if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
-  const b=await r.json();rc_out.innerHTML=renderReconstruct(b);
+  const seq=document.getElementById('rc_seq').value;
+  const sp=document.getElementById('rc_sp').value;
+  const vg=document.getElementById('rc_v').value;
+  const jg=document.getElementById('rc_j').value;
+  if(vg&&jg){
+   const r=await fetch('/reconstruct',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({v_gene:vg,j_gene:jg,cdr3_aa:seq,species:sp})});
+   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+   const b=await r.json();rc_out.innerHTML=renderReconstruct(b);
+  }else{
+   const r=await fetch('/v1/tcr/assign',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({sequence:seq,species:sp,want_d:true})});
+   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+   const b=await r.json();rc_out.innerHTML=renderAssign(b);
+  }
  }catch(err){rc_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
  finally{btn.disabled=false;btn.textContent=t0;}});
 function seqBlock(label,seq){if(!seq)return '';return '<p class="muted" style="margin:.3rem 0 .1rem">'+esc(label)+' ('+seq.length+' aa)</p><div class="comp" style="word-break:break-all;white-space:pre-wrap">'+esc(seq)+'</div>';}
@@ -1307,6 +1316,33 @@ function renderReconstruct(b){
   h+='<p class="kind">constant: '+esc(b.constant_source||'')+'</p>';}
  else{h+='<p class="muted">Full chain unavailable: no vendored constant region for '+esc(b.species)+' '+esc((b.v_gene||'').slice(0,3))+'.</p>';}
  h+='<p class="kind">'+esc(b.note||'')+'</p>';
+ return h+'</div>';}
+function callRow(label,call){
+ if(!call)return '';
+ return '<p class="kind">'+esc(label)+': '+esc(call.alleles.join(', '))+
+  ' <span class="muted">(identity '+(call.identity*100).toFixed(1)+'%, span '+
+  esc(call.aligned_span[0])+' to '+esc(call.aligned_span[1])+')</span></p>';}
+function renderAssign(b){
+ if(!b.chain){return '<p class="warn">No germline alignment found for this sequence'+
+  (b.warnings&&b.warnings.length?' ('+b.warnings.map(esc).join(', ')+')':'')+'.</p>';}
+ let h='<div class="card"><h3>'+esc(b.chain)+' chain <span class="muted">('+esc(b.species)+
+  ', input: '+esc(b.input_kind)+')</span></h3>';
+ if(b.v_determinable){h+=callRow('V',b.v_call);}
+ else{
+  h+='<p class="warn">V not determinable: '+esc(b.v_reason||'')+'</p>';
+  if(b.v_db_inference&&b.v_db_inference.length){
+   h+='<div class="db-inference"><h4>database frequency inference (weaker signal)</h4><ul>'+
+    b.v_db_inference.map(x=>'<li>'+esc(x.chain)+' '+esc(x.v_gene)+' / '+esc(x.j_gene)+
+     ' (n='+esc(x.count)+')</li>').join('')+'</ul></div>';}}
+ h+=callRow('J',b.j_call);
+ if(b.d_call){h+=callRow('D'+(b.d_call.low_confidence?' (low confidence)':''),b.d_call);}
+ if(b.constant_call){h+=callRow('constant',b.constant_call);}
+ if(b.regions&&Object.keys(b.regions).length){
+  h+='<p class="kind">regions: '+Object.entries(b.regions)
+   .map(([k,v])=>esc(k)+' '+(v*100).toFixed(1)+'%').join(', ')+'</p>';}
+ if(b.cdr3_aa){h+='<p class="kind">CDR3: '+esc(b.cdr3_aa)+'</p>';}
+ if(b.reconstruction){h+=renderReconstruct(b.reconstruction);}
+ if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(esc).join(', ')+'</p>';}
  return h+'</div>';}
 </script></body></html>"""
 

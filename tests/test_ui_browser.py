@@ -268,9 +268,10 @@ def test_ui_natural_language_mouse_query_hides_hla_until_toggled(server):
 
 
 def test_ui_reconstruction_panel_builds_full_chain(server):
-    """The reconstruction panel takes V + J + CDR3 + species and renders the
-    full membrane-bound chain, the germline allele used, and the constant-region
-    provenance (an oracle-validated mouse example)."""
+    """When both V and J overrides are filled, the panel still calls the
+    direct /reconstruct path unchanged: full membrane-bound chain, the
+    germline allele used, and the constant-region provenance (an
+    oracle-validated mouse example)."""
     errors = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -281,7 +282,7 @@ def test_ui_reconstruction_panel_builds_full_chain(server):
         page.select_option("#rc_sp", "mouse")
         page.fill("#rc_v", "TRBV19")
         page.fill("#rc_j", "TRBJ1-4")
-        page.fill("#rc_cdr3", "CASSMADRKFF")
+        page.fill("#rc_seq", "CASSMADRKFF")
         page.click("#rcf button")
         page.wait_for_function(
             "document.querySelector('#rc_out').innerText.includes('full chain')", timeout=8000)
@@ -294,9 +295,42 @@ def test_ui_reconstruction_panel_builds_full_chain(server):
     assert "oracle-validated" in text, "the constant-region provenance should be shown"
 
 
-def test_ui_reconstruction_infers_vj_from_cdr3_alone(server):
-    """Leaving V and J blank infers them from the records index and still
-    builds a full chain, clearly labeled as inferred."""
+def test_ui_assign_panel_identifies_full_chain_with_blank_overrides(server):
+    """Pasting a full chain with V and J left blank routes to
+    POST /v1/tcr/assign (not /reconstruct): the panel reports the assigned V
+    allele, the extracted CDR3, and a per-region identity row."""
+    from imgt_app.reconstructor import reconstruct_tcr
+
+    full_chain_aa = reconstruct_tcr(
+        "TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse"
+    )["full_chain_aa"]
+
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.select_option("#rc_sp", "mouse")
+        page.fill("#rc_v", "")
+        page.fill("#rc_j", "")
+        page.fill("#rc_seq", full_chain_aa)
+        page.click("#rcf button")
+        page.wait_for_function(
+            "document.querySelector('#rc_out').innerText.includes('CASSMADRKFF')", timeout=8000)
+        text = page.locator("#rc_out").inner_text()
+        browser.close()
+    assert errors == [], f"assign UI console errors: {errors}"
+    assert "TRBV19" in text, "the assigned V allele should be reported"
+    assert "CASSMADRKFF" in text, "the extracted CDR3 should be reported"
+    assert "FR1" in text or "CDR1" in text, "a per region identity row should render"
+
+
+def test_ui_assign_panel_refuses_bare_cdr3_with_db_inference(server):
+    """A bare CDR3 (no framework) cannot be assigned a V allele: the panel
+    shows the refusal reason plus the database frequency inference, under a
+    heading clearly separate from a real germline call."""
     errors = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -307,13 +341,15 @@ def test_ui_reconstruction_infers_vj_from_cdr3_alone(server):
         page.select_option("#rc_sp", "human")
         page.fill("#rc_v", "")
         page.fill("#rc_j", "")
-        page.fill("#rc_cdr3", "CASSLGTEAFF")
+        page.fill("#rc_seq", "CASSLGTEAFF")
         page.click("#rcf button")
         page.wait_for_function(
-            "document.querySelector('#rc_out').innerText.includes('full chain')", timeout=8000)
+            "document.querySelector('#rc_out').innerText.includes('database frequency inference')",
+            timeout=8000)
         text = page.locator("#rc_out").inner_text()
         browser.close()
-    assert errors == [], f"reconstruction (infer) UI console errors: {errors}"
-    assert "inferred" in text.lower(), "the inferred V/J should be disclosed"
-    assert "TRBV4-1" in text and "TRBJ1-1" in text, "the inferred genes should be shown"
-    assert "CASSLGTEAFF" in text, "the CDR3 should appear in the reconstructed chain"
+    assert errors == [], f"assign refusal UI console errors: {errors}"
+    assert "not determinable" in text.lower(), "the V refusal reason should be shown"
+    assert "database frequency inference" in text, \
+        "the weaker database inference should be under its own heading"
+    assert "TRBV4-1" in text, "the inferred V/J candidates should be listed"
