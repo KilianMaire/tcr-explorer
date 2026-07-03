@@ -11,12 +11,13 @@ from typing import Optional
 import httpx
 from pydantic import BaseModel
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
+from .dossier_models import DossierRequest, TCRDossier
 from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
 from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
@@ -932,3 +933,26 @@ async def predict_peptides(req: PeptidePredictionRequest):
         total_screened=len(epitope_list),
         total_passing=total_passing,
     )
+
+
+def _dossier_markdown(d: TCRDossier) -> str:
+    lines = [f"# TCR Dossier ({d.status})", "", d.summary, "",
+             f"- chain: {d.chain}", f"- species: {d.species}"]
+    if d.genes.get("v"):
+        lines.append(f"- V: {d.genes['v'].call} ({d.genes['v'].score_method})")
+    if d.known_epitopes:
+        lines.append(f"- known epitopes: {d.known_epitopes_total}")
+    if d.warnings:
+        lines.append("- warnings: " + ", ".join(w.code for w in d.warnings))
+    return "\n".join(lines)
+
+
+@app.post("/v1/tcr/dossier", response_model=TCRDossier)
+async def tcr_dossier(req: DossierRequest, request: Request):
+    from .dossier import build_dossier  # local import: avoids circular import
+    # (dossier -> dossier_epitopes -> api.search/_IEDB_HITS_CAP)
+
+    d = build_dossier(req)
+    if "text/markdown" in request.headers.get("accept", ""):
+        return PlainTextResponse(_dossier_markdown(d), media_type="text/markdown")
+    return d
