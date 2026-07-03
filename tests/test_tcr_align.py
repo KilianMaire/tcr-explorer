@@ -125,6 +125,53 @@ def test_uncovered_regions_are_omitted_not_zeroed():
     assert a.regions.get("FR3", 0.0) > 0.9
 
 
+def test_v_only_input_emits_no_confident_constant_call():
+    # A V-region-only amino acid input contains no constant region. The 3'
+    # remainder past the (spurious) J hit is the V-region body, so a naive
+    # constant call aligns a tiny island at ~66.7% identity: a spurious
+    # confident constant call with zero warnings under the old code. After the
+    # fix the call must never be emitted silently as confident: either it is
+    # gated out (short remainder) or, when emitted, it carries the low constant
+    # identity warning. This asserts the honesty invariant (no silent confident
+    # spurious call), which fails under the old code and passes after the fix.
+    from imgt_app.tcr_align import assign
+    v = germline_alleles("human", "TRB", "V")[0]
+    a = assign(v.aa, chain="TRB", species="human")
+    assert a.constant_call is None or "low constant identity" in a.warnings
+
+
+def test_full_chain_still_yields_a_trbc_constant_call():
+    # The real full-chain path is unaffected in that it still identifies the
+    # constant region as TRBC (the length gate keeps a large remainder).
+    from imgt_app.reconstructor import reconstruct_tcr
+    from imgt_app.tcr_align import assign
+    built = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")
+    a = assign(built["full_chain_aa"], species="mouse")
+    assert a.constant_call and any(n.startswith("TRBC") for n in a.constant_call["alleles"])
+
+
+def test_clean_full_chain_constant_is_not_spuriously_warned():
+    # A full-chain constant call that aligns at high identity carries no low
+    # constant identity warning (the warning fires only on genuinely weak
+    # evidence). The human TRBC reference resolves at identity 1.0 here.
+    from imgt_app.reconstructor import reconstruct_tcr
+    from imgt_app.tcr_align import assign
+    built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
+    a = assign(built["full_chain_aa"], species="human")
+    assert a.constant_call and any(n.startswith("TRBC") for n in a.constant_call["alleles"])
+    assert "low constant identity" not in a.warnings
+
+
+def test_absent_d_for_alpha_is_explained_when_requested():
+    # Alpha has no D segment. When the caller asks for D and none is available,
+    # the result must say why rather than silently returning d_call None.
+    from imgt_app.tcr_align import assign
+    v = germline_alleles("human", "TRA", "V")[0]
+    a = assign(v.aa, chain="TRA", species="human", want_d=True)
+    assert a.d_call is None
+    assert any("no D segment" in w for w in a.warnings)
+
+
 def test_d_call_is_always_low_confidence_on_human_beta():
     # A human beta nucleotide chain with want_d must either return a D call
     # carrying the always-on low_confidence flag, or, when no D germline is

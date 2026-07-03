@@ -280,17 +280,27 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
     if j_best:
         j_qend = int(j_best.aligned_span[1])
         remainder = seq[j_qend:]
-        if remainder:
+        # Only attempt a constant call when the 3' remainder is long enough to
+        # plausibly be a constant region. A short remainder (e.g. a V region
+        # only input, which carries no constant) would otherwise produce a
+        # spurious confident call, so we refuse it. Scale by the input level.
+        min_remainder = 60 if level == "nt" else 20
+        if len(remainder) >= min_remainder:
             c_best = best_alleles(remainder, germline_alleles(species, chain, "C"), level)
             constant_call = _to_call_dict(c_best)
 
-    # D call: only for TRB nucleotide input, always low confidence.
+    # D call: only for TRB nucleotide input, always low confidence. When the
+    # caller asked for D and none is available for this chain and species, say
+    # why rather than returning a silent null.
     d_call = None
-    if want_d and chain == "TRB" and level == "nt" and v_best and j_best:
-        d_alleles = germline_alleles(species, "TRB", "D")
+    if want_d:
+        d_alleles = germline_alleles(species, chain, "D")
         if not d_alleles:
-            warnings.append(f"D germline not vendored for {species}")
-        else:
+            if chain == "TRB":
+                warnings.append(f"D germline not vendored for {species}")
+            else:
+                warnings.append(f"no D segment for {chain}")
+        elif chain == "TRB" and level == "nt" and v_best and j_best:
             seg = seq[int(v_best.aligned_span[1]) : int(j_best.aligned_span[0])]
             d_best = best_alleles(seg, d_alleles, "nt") if seg else None
             if d_best:
@@ -307,6 +317,8 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
         warnings.append("low V identity")
     if j_best and j_best.identity < 0.90:
         warnings.append("low J identity")
+    if constant_call and constant_call["identity"] < 0.90:
+        warnings.append("low constant identity")
     if v_determinable and v_best and len(v_best.alleles) > 1:
         warnings.append(f"ambiguous V allele ({len(v_best.alleles)} co-optimal)")
 
