@@ -1057,10 +1057,10 @@ function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span c
    for(const e of d.known_epitopes)h+=`<tr><td>${esc(e.epitope_sequence)}</td><td>${esc(e.mhc_allele)}</td><td>${esc(e.antigen_name)}</td></tr>`;h+='</table>';}
   if(d.neighbours&&d.neighbours.length){h+=neighTable(d.neighbours);}
   if(d.warnings&&d.warnings.length){h+='<p class="warn">warnings: '+d.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}}
- if(b.neighbours_result){h+=neighTable(b.neighbours_result.neighbours);}
+ if(b.neighbours_result){const nr=b.neighbours_result;h+=neighTable(nr.neighbours);if(nr.warnings&&nr.warnings.length){h+='<p class="warn">'+nr.warnings.map(w=>esc(w.message||w.code)).join('; ')+'</p>';}}
  if(b.search_result){h+=`<p class="muted">search returned ${b.search_result.total} records</p>`;}
  return h+'</div>';}
-function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">no similar TCRs</p>';
+function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">No matching known TCRs found in the reference database for this CDR3.</p>';
  let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
  for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
 const af=document.getElementById('af'),a_out=document.getElementById('a_out');

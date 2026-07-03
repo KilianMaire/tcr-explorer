@@ -103,7 +103,8 @@ def _run(base):
         page.wait_for_function(
             "document.querySelector('#out').innerText.includes('TRBV20-1')", timeout=8000)
         result["gene"] = page.locator("#out").inner_text()
-        # a bare CDR3 renders the guidance hint (not a blank result)
+        # a bare CDR3 is looked up against the known-TCR reference (similarity),
+        # not a dead-end germline annotation
         page.fill("#q", "CASSLGTEAFF")
         page.click("#f button")
         page.wait_for_function(
@@ -117,8 +118,10 @@ def test_ui_has_no_console_errors_and_forms_work(server):
     errors, result = _run(server)
     assert errors == [], f"UI console errors: {errors}"
     assert "chain: beta" in result["gene"] and "TRBV20-1" in result["gene"]
-    assert "cannot identify V/D/J" in result["cdr3"], \
-        "bare CDR3 should render the guidance hint, not a blank result"
+    assert "intent: similar" in result["cdr3"], \
+        "a bare CDR3 should route to a similarity lookup, not germline annotation"
+    assert "Similar TCRs" in result["cdr3"], \
+        "the CDR3 lookup should render matching known TCRs"
 
 
 def test_ui_align_form_renders_colored_aa_nt(server):
