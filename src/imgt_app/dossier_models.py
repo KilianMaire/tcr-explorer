@@ -160,3 +160,76 @@ class MSAResult(BaseModel):
     view: str = "nt"                                          # "aa_nt" | "aa" | "nt"
     provenance: list[Provenance] = Field(default_factory=list)
     warnings: list[DossierWarning] = Field(default_factory=list)
+
+
+class Composition(BaseModel):
+    v_germline_aa: Optional[str] = None
+    cdr3_aa: str
+    j_germline_aa: Optional[str] = None
+    v_region_nt: Optional[str] = None
+    cdr3_nt: Optional[str] = None
+    j_region_nt: Optional[str] = None
+    note: Optional[str] = None
+
+
+class TCRRecord(BaseModel):
+    source: str
+    source_record_id: str
+    external_url: str
+    pairing_key: str
+    chain: str
+    species: str
+    cdr3_aa: str
+    cdr3_nt: Optional[str] = None
+    cdr3_nt_kind: Optional[Literal["deposited", "reconstructed"]] = None
+    full_aa: Optional[str] = None
+    full_aa_kind: Optional[Literal["deposited", "reconstructed"]] = None
+    full_nt: Optional[str] = None
+    full_nt_kind: Optional[Literal["deposited", "reconstructed"]] = None
+    nt_is_synthetic: bool = False
+    v_gene: Optional[str] = None
+    d_gene: Optional[str] = None
+    j_gene: Optional[str] = None
+    cdr1_aa: Optional[str] = None
+    cdr2_aa: Optional[str] = None
+    epitope_aa: Optional[str] = None
+    antigen: Optional[str] = None
+    antigen_organism: Optional[str] = None
+    mhc_class: Optional[str] = None
+    mhc_a: Optional[str] = None
+    mhc_b: Optional[str] = None
+    pdb_id: Optional[str] = None
+    reference_pmid: Optional[str] = None
+    score: Optional[float] = None
+    composition: Optional[Composition] = None
+    match_kind: Literal["exact", "neighbour"] = "exact"
+    similarity: Optional[float] = None
+    concordance: int = 1
+
+
+class PairedRecord(BaseModel):
+    pairing_key: str
+    source: str
+    alpha: Optional[TCRRecord] = None
+    beta: Optional[TCRRecord] = None
+
+
+class RecordsRequest(BaseModel):
+    query: Optional[str] = Field(None, description="Free query: a CDR3, a gene, a V+J+CDR3 phrase, or a database id.", examples=["CASSLGTEAFF", "TRBV20-1", "vdjdb:c123"])
+    cdr3_aa: Optional[str] = Field(None, description="A CDR3 amino acid sequence to retrieve records for.", examples=["CASSLGTEAFF"])
+    cdr3_aa_b: Optional[str] = Field(None, description="A second-chain CDR3 for a pair query (alpha+beta).", examples=["CAVRDSNYQLIW"])
+    v_gene: Optional[str] = Field(None, examples=["TRBV20-1"])
+    j_gene: Optional[str] = Field(None, examples=["TRBJ2-7"])
+    species: Optional[SpeciesType] = Field(None, description="Filter by organism; omit for all species.", examples=["human", "mouse"])
+    top_k: int = Field(50, ge=1, le=500, description="Max exact records to return.", examples=[50])
+    include_neighbours: bool = Field(True, description="Also return BLOSUM near neighbours (kept separate from exact hits).")
+
+
+class RecordsResponse(BaseModel):
+    query_echo: dict[str, Any]
+    exact: list[TCRRecord] = Field(default_factory=list)
+    neighbours: list[TCRRecord] = Field(default_factory=list)
+    pairs: list[PairedRecord] = Field(default_factory=list)
+    total_exact: int = 0
+    sources_searched: list[str] = Field(default_factory=list)
+    warnings: list[DossierWarning] = Field(default_factory=list)
