@@ -163,6 +163,47 @@ def load_records_index(path: Optional[str] = None) -> Optional[pd.DataFrame]:
     return pd.read_parquet(p)
 
 
+def infer_vj_from_cdr3(
+    cdr3_aa: str,
+    species: Optional[str] = None,
+    *,
+    index_path: Optional[str] = None,
+    top: int = 5,
+) -> list[dict]:
+    """Infer likely V and J genes for a CDR3 by tallying database records that
+    carry the exact same CDR3. Returns pairings ranked by supporting record
+    count: ``[{"chain", "v_gene", "j_gene", "count"}]`` (gene names normalized
+    to their base, allele stripped). Empty when the CDR3 matches no record, the
+    index is unavailable, or matched rows lack a V or J gene. This is a
+    frequency inference over deposited records, not a germline assignment: the
+    caller must label a reconstruction built on it as inferred.
+    """
+    if not cdr3_aa or not cdr3_aa.strip():
+        return []
+    frame = load_records_index(index_path)
+    if frame is None or frame.empty:
+        return []
+    work = frame[_cdr3_mask(frame, cdr3_aa)]
+    if species:
+        work = _species_filter(work, species)
+    if work.empty:
+        return []
+    vb = _gene_base_series(work["v_gene"])
+    jb = _gene_base_series(work["j_gene"])
+    work = work.assign(_vb=vb, _jb=jb)
+    work = work[(work["_vb"] != "") & (work["_jb"] != "")]
+    if work.empty:
+        return []
+    counts = work.groupby(["_vb", "_jb"]).size().sort_values(ascending=False)
+    out: list[dict] = []
+    for (v, j), n in counts.items():
+        chain = _segment_and_chain(v)[1] or _segment_and_chain(j)[1]
+        out.append({"chain": chain, "v_gene": v, "j_gene": j, "count": int(n)})
+        if len(out) >= top:
+            break
+    return out
+
+
 def _segment_and_chain(gene: str) -> tuple[Optional[str], Optional[str]]:
     """Segment letter (V/D/J/C) and chain label for a gene, guarded against
     `_gene_to_chain`'s default-to-TRB behaviour on unrecognized input: only

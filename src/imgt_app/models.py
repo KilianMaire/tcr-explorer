@@ -89,8 +89,8 @@ class CDRPredictResponse(BaseModel):
 
 
 class ReconstructRequest(BaseModel):
-    v_gene: str
-    j_gene: str
+    v_gene: Optional[str] = None   # optional: inferred from the CDR3 if omitted
+    j_gene: Optional[str] = None   # optional: inferred from the CDR3 if omitted
     cdr3_aa: str
     species: Species = "human"
 
@@ -113,6 +113,9 @@ class ReconstructResponse(BaseModel):
     j_suffix_nt: Optional[str] = None   # in-frame J FR4 after Phe/Trp118
     v_found: bool
     j_found: bool
+    genes_inferred: bool = False           # True when V/J were inferred from the CDR3
+    inference_support: Optional[int] = None  # records backing the chosen V/J pairing
+    inference_alternatives: Optional[list[str]] = None  # other pairings, e.g. "TRBV19/TRBJ2-7 (n=3)"
     note: str
 
 

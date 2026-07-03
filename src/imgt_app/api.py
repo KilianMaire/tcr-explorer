@@ -475,13 +475,54 @@ async def search_fasta(
 @app.post("/reconstruct", response_model=ReconstructResponse)
 def reconstruct(req: ReconstructRequest) -> ReconstructResponse:
     """
-    Reconstruct a full TCR coding sequence from V gene + CDR3 + J gene.
+    Reconstruct a full TCR coding sequence from a CDR3, optionally with V and J.
 
-    Uses stitchr IMGT germline data for V/J regions; CDR3 is back-translated
-    with human-optimised codons.  Assembly follows IMGT/VDJdb CDR3 boundaries:
-    Cys104 … Phe/Trp118 (inclusive).
+    V and J are optional: if either is omitted, it is inferred from the CDR3 by
+    tallying database records that carry the exact same CDR3 and taking the most
+    common pairing (reported as inferred, with the supporting count and
+    alternatives). Uses stitchr IMGT germline for V/J regions; CDR3 is
+    back-translated with human-optimised codons. Assembly follows IMGT/VDJdb
+    CDR3 boundaries: Cys104 … Phe/Trp118 (inclusive).
     """
-    result = reconstruct_tcr(req.v_gene, req.j_gene, req.cdr3_aa, req.species)
+    from .records import infer_vj_from_cdr3, _gene_base  # local: avoids import cycle
+
+    v_gene = (req.v_gene or "").strip() or None
+    j_gene = (req.j_gene or "").strip() or None
+    genes_inferred = False
+    inference_support: Optional[int] = None
+    inference_alternatives: Optional[list[str]] = None
+
+    if not v_gene or not j_gene:
+        candidates = infer_vj_from_cdr3(req.cdr3_aa, req.species)
+        # constrain to whatever the caller did pin down
+        if v_gene:
+            candidates = [c for c in candidates if _gene_base(c["v_gene"]) == _gene_base(v_gene)]
+        if j_gene:
+            candidates = [c for c in candidates if _gene_base(c["j_gene"]) == _gene_base(j_gene)]
+        if not candidates:
+            return ReconstructResponse(
+                v_gene=v_gene or "", j_gene=j_gene or "", cdr3_aa=req.cdr3_aa,
+                species=req.species, full_nt=None, full_aa=None, v_region_nt=None,
+                cdr3_nt="", j_region_nt=None, v_found=bool(v_gene), j_found=bool(j_gene),
+                genes_inferred=False,
+                note=(
+                    "No database record carries this exact CDR3, so V and J could "
+                    "not be inferred. Provide a V gene and a J gene to reconstruct."
+                ),
+            )
+        top = candidates[0]
+        v_gene = v_gene or top["v_gene"]
+        j_gene = j_gene or top["j_gene"]
+        genes_inferred = True
+        inference_support = top["count"]
+        inference_alternatives = [
+            f"{c['v_gene']}/{c['j_gene']} (n={c['count']})" for c in candidates
+        ]
+
+    result = reconstruct_tcr(v_gene, j_gene, req.cdr3_aa, req.species)
+    result["genes_inferred"] = genes_inferred
+    result["inference_support"] = inference_support
+    result["inference_alternatives"] = inference_alternatives
     return ReconstructResponse(**result)
 
 
@@ -1044,6 +1085,7 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  .xspecies{display:inline-block;background:#ffe6cc;color:#8a4b00;font-size:.72rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;margin-left:.4rem}
  .comp{font-family:monospace;font-size:.85rem;background:#eee;padding:.2rem .4rem;border-radius:4px;display:inline-block}
  .partner{margin-top:.4rem;padding-left:.6rem;border-left:3px solid #ccc}
+ .recon{margin-top:1.5rem} .recon h2{margin:.2rem 0 .4rem;font-size:1.25rem} #rc_cdr3{width:100%;box-sizing:border-box;margin-bottom:.5rem} #rc_v,#rc_j{flex:1;min-width:9rem}
  details.advanced{margin-top:2rem;color:#444}
  details.advanced summary{cursor:pointer;font-size:1.1rem;font-weight:600}
 </style></head><body>
@@ -1061,7 +1103,21 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <div id="echo"></div>
 </div>
 <div id="out"><div id="askOut"></div><div id="recOut"></div></div>
-<details class="advanced" open>
+<div class="searchbar recon">
+<h2>Reconstruct a full chain</h2>
+<p class="muted">Build the full membrane-bound chain from a CDR3. V and J are optional: leave them blank and they are inferred from database records that carry the exact same CDR3 (most common pairing, reported as inferred). The variable domain comes from IMGT germline; the constant region is vendored (mouse is oracle-validated, human is not). The allele defaults to *01 unless you write it into the gene name (e.g. TRAV7-4*02).</p>
+<form id="rcf">
+<input id="rc_cdr3" placeholder="CDR3 aa (required) e.g. CASSLGTEAFF" value="CASSLGTEAFF">
+<div class="searchrow">
+<select id="rc_sp"><option>human</option><option>mouse</option></select>
+<input id="rc_v" placeholder="V gene (optional, inferred if blank)">
+<input id="rc_j" placeholder="J gene (optional, inferred if blank)">
+<button type="submit">Reconstruct</button>
+</div>
+</form>
+<div id="rc_out"></div>
+</div>
+<details class="advanced">
 <summary>Align a gene set</summary>
 <p class="muted">Align a germline set (species + chain + segment) or a gene list. V/J/C come from the germline source; D is not available there.</p>
 <form id="af">
@@ -1071,17 +1127,6 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <label><input type="checkbox" id="a_translate"> translate</label>
 <button type="submit">Align</button></form>
 <div id="a_out"></div>
-</details>
-<details class="advanced" open>
-<summary>Reconstruct a full chain</summary>
-<p class="muted">Build the full membrane-bound chain from a V gene, J gene, and CDR3. The variable domain is derived from IMGT germline; the constant region is vendored reference data (mouse is oracle-validated, human is not). The germline allele defaults to *01 unless you write it into the gene name (e.g. TRAV7-4*02).</p>
-<form id="rcf">
-<select id="rc_sp"><option>human</option><option>mouse</option></select>
-<input id="rc_v" placeholder="V gene e.g. TRBV19" value="TRBV19">
-<input id="rc_j" placeholder="J gene e.g. TRBJ1-4" value="TRBJ1-4">
-<input id="rc_cdr3" placeholder="CDR3 aa e.g. CASSMADRKFF" value="CASSMADRKFF">
-<button type="submit">Reconstruct</button></form>
-<div id="rc_out"></div>
 </details>
 <script>
 const f=document.getElementById('f'),askOut=document.getElementById('askOut'),recOut=document.getElementById('recOut'),echoEl=document.getElementById('echo'),xmhc=document.getElementById('xmhc');
@@ -1239,6 +1284,9 @@ function seqBlock(label,seq){if(!seq)return '';return '<p class="muted" style="m
 function renderReconstruct(b){
  if(!b.v_found||!b.j_found){return '<p class="warn">Germline not found'+(!b.v_found?' for V '+esc(b.v_gene):'')+(!b.j_found?' for J '+esc(b.j_gene):'')+'. Check the gene names.</p>';}
  let h='<div class="card"><h3>'+esc(b.v_gene)+' + '+esc(b.cdr3_aa)+' + '+esc(b.j_gene)+' <span class="muted">('+esc(b.species)+', V '+esc(b.v_allele_used||'?')+' / J '+esc(b.j_allele_used||'?')+')</span></h3>';
+ if(b.genes_inferred){h+='<p class="echo">V and J inferred from '+esc(b.inference_support)+' database record'+(b.inference_support==1?'':'s')+' carrying this exact CDR3 (most common pairing). This is a frequency inference, not a germline assignment.';
+  if(b.inference_alternatives&&b.inference_alternatives.length>1){h+='<br><span class="muted">other pairings: '+esc(b.inference_alternatives.slice(1).join(', '))+'</span>';}
+  h+='</p>';}
  h+=seqBlock('variable domain',b.full_aa);
  if(b.full_chain_aa){h+=seqBlock('full chain (variable + constant, reconstructed)',b.full_chain_aa);
   h+='<p class="kind">constant: '+esc(b.constant_source||'')+'</p>';}
