@@ -1032,6 +1032,12 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  .loading{color:#0b5;font-weight:600} .loading::after{content:'';display:inline-block;width:.7em;height:.7em;margin-left:.4em;border:2px solid #0b5;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle} @keyframes spin{to{transform:rotate(360deg)}} button:disabled{opacity:.6}
  td,th{border:1px solid #eee;padding:.3rem;text-align:left;font-size:.9rem} .muted{color:#666}
  h3{margin:.3rem 0}
+ .rec{border:1px solid #e2e2e2;border-radius:6px;padding:.6rem .8rem;margin:.5rem 0;background:#fafafa}
+ .rec.neigh{background:#f5f8ff;border-style:dashed}
+ .badge{display:inline-block;background:#333;color:#fff;font-size:.75rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;letter-spacing:.03em}
+ .kind{color:#666;font-size:.8rem}
+ .comp{font-family:monospace;font-size:.85rem;background:#eee;padding:.2rem .4rem;border-radius:4px;display:inline-block}
+ .partner{margin-top:.4rem;padding-left:.6rem;border-left:3px solid #ccc}
 </style></head><body>
 <h1>TCR Explorer</h1>
 <p class="muted">Ask about a TCR: a gene (TRBV20-1), a CDR3 (CASSLGTEAFF), a sequence, or a V+J+CDR3. Known epitopes are retrieved; similar-TCR epitopes are inferred.</p>
@@ -1052,10 +1058,16 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 const f=document.getElementById('f'),out=document.getElementById('out');
 f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';out.innerHTML='<p class="loading">Searching...</p>';
  try{
+  const q=document.getElementById('q').value,sp=document.getElementById('sp').value;
   const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({query:document.getElementById('q').value,species:document.getElementById('sp').value})});
+   body:JSON.stringify({query:q,species:sp})});
   if(!r.ok){out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
   const b=await r.json();out.innerHTML=render(b);
+  try{
+   const rr=await fetch('/v1/tcr/records',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query:q,species:sp})});
+   if(rr.ok){const rb=await rr.json();out.innerHTML+=renderRecords(rb);}
+  }catch(recErr){/* records lookup is additive, never fatal to the ask flow */}
  }catch(err){out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
  finally{btn.disabled=false;btn.textContent=t0;}});
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
@@ -1075,6 +1087,52 @@ function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span c
 function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">No matching known TCRs found in the reference database for this CDR3.</p>';
  let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
  for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
+function sourceBadge(s){return '<span class="badge">'+esc((s||'').toUpperCase())+'</span>';}
+function compStrip(c){if(!c)return '';
+ return '<div class="comp">'+esc(c.v_germline_aa||'-')+' | '+esc(c.cdr3_aa||'-')+' | '+esc(c.j_germline_aa||'-')+'</div>';}
+function partnerLine(rec,pairs){if(!pairs||!pairs.length)return '';
+ for(const p of pairs){
+  if(p.pairing_key!==rec.pairing_key)continue;
+  const other=(rec.chain==='alpha')?p.beta:p.alpha;
+  if(other&&other.cdr3_aa!==rec.cdr3_aa){
+   return '<div class="partner">paired '+esc(other.chain)+': <code>'+esc(other.cdr3_aa)+'</code> ('+esc(other.source)+')</div>';
+  }
+ }
+ return '';}
+function recordCard(rec,pairs,cls){let h='<div class="rec '+cls+'">';
+ h+=sourceBadge(rec.source)+' <span class="muted">'+esc(rec.chain)+' / '+esc(rec.species)+'</span>';
+ if(rec.external_url)h+=' <a href="'+esc(rec.external_url)+'" target="_blank" rel="noopener">source</a>';
+ h+='<br>aa: <code>'+esc(rec.full_aa||rec.cdr3_aa)+'</code>';
+ if(rec.full_aa_kind)h+=' <span class="kind">('+esc(rec.full_aa_kind)+')</span>';
+ const nt=rec.full_nt||rec.cdr3_nt;
+ const ntKind=rec.full_nt?rec.full_nt_kind:rec.cdr3_nt_kind;
+ if(nt&&ntKind){h+='<br>nt: <code>'+esc(nt)+'</code> <span class="kind">('+esc(ntKind)+')</span>';}
+ const genes=[];
+ if(rec.v_gene)genes.push('V '+esc(rec.v_gene));
+ if(rec.d_gene)genes.push('D '+esc(rec.d_gene));
+ if(rec.j_gene)genes.push('J '+esc(rec.j_gene));
+ if(genes.length)h+='<br>'+genes.join(' &middot; ');
+ const cdrs=[];
+ if(rec.cdr1_aa)cdrs.push('CDR1 '+esc(rec.cdr1_aa));
+ if(rec.cdr2_aa)cdrs.push('CDR2 '+esc(rec.cdr2_aa));
+ if(rec.cdr3_aa)cdrs.push('CDR3 '+esc(rec.cdr3_aa));
+ if(cdrs.length)h+='<br>'+cdrs.join(' &middot; ');
+ if(rec.epitope_aa||rec.mhc_a){
+  h+='<br>epitope: '+esc(rec.epitope_aa||'unknown');
+  if(rec.mhc_class||rec.mhc_a)h+=' &middot; MHC '+esc(rec.mhc_class||'')+' '+esc(rec.mhc_a||'');
+ }
+ if(rec.composition)h+='<br>'+compStrip(rec.composition);
+ h+=partnerLine(rec,pairs);
+ return h+'</div>';}
+function renderRecords(data){if(!data)return '';
+ let h='<h3>Exact records</h3>';
+ if(data.exact&&data.exact.length){for(const rec of data.exact)h+=recordCard(rec,data.pairs,'exact');}
+ else h+='<p class="muted">No exact records found.</p>';
+ h+='<h3>Near neighbours</h3>';
+ if(data.neighbours&&data.neighbours.length){for(const rec of data.neighbours)h+=recordCard(rec,data.pairs,'neigh');}
+ else h+='<p class="muted">No near neighbours found.</p>';
+ if(data.warnings&&data.warnings.length){h+='<p class="warn">'+esc(data.warnings.map(w=>w.message||w.code).join('; '))+'</p>';}
+ return h;}
 const af=document.getElementById('af'),a_out=document.getElementById('a_out');
 af.addEventListener('submit',async e=>{e.preventDefault();const btn=af.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Aligning...';a_out.innerHTML='<p class="loading">Aligning...</p>';
  try{

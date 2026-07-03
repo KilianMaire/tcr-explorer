@@ -63,6 +63,9 @@ def server():
     idx = _ROOT / "data" / "unitcr_beta_index.parquet"
     if idx.exists():
         env["UNITCR_INDEX_PATH"] = str(idx)
+    records_idx = _ROOT / "data" / "records_index.parquet"
+    if records_idx.exists():
+        env["RECORDS_INDEX_PATH"] = str(records_idx)
     proc = subprocess.Popen(
         [str(_ROOT / ".venv" / "bin" / "uvicorn"), "imgt_app.api:app",
          "--port", str(port), "--host", "127.0.0.1"],
@@ -148,3 +151,29 @@ def test_ui_align_form_renders_colored_aa_nt(server):
     assert "view aa_nt" in txt, "translated germline set should render the codon-aware aa+nt view"
     assert " aa  " in txt and " nt  " in txt, "both an aa row and an nt row should render"
     assert "background:#" in html, "conservation coloring spans should be present"
+
+
+def test_ui_renders_record_cards(server):
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.fill("#q", "CASSLGTEAFF")
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
+        text = page.locator("#out").inner_text()
+        html = page.locator("#out").inner_html()
+        browser.close()
+    assert errors == [], f"record card console errors: {errors}"
+    assert "Exact records" in text
+    assert "Near neighbours" in text
+    assert any(badge in text for badge in ("VDJDB", "IEDB", "MCPAS", "TCR3D")), \
+        "a source badge should be rendered"
+    assert 'href="http' in html, "a record card should link back to its source"
+    if "nt:" in text:
+        assert ("deposited" in text) or ("reconstructed" in text), \
+            "a shown nt line should be labeled with its provenance"
