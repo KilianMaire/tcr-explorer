@@ -13,6 +13,7 @@ from typing import Optional
 _DNA = set("ACGT")
 _AA = set("ACDEFGHIKLMNPQRSTVWY")
 _AA_ONLY = set("EFILPQZX*")  # letters that never appear in a nucleotide alphabet
+_AA_EXT = _AA | _AA_ONLY  # amino-acid alphabet widened with the signature letters
 _ID_RE = re.compile(r"^(vdjdb|iedb):\w+$", re.I)
 _GENE_RE = re.compile(r"^TR[ABGD][VDJC]\d+(-\d+)?(\*\d+)?$", re.I)
 
@@ -29,7 +30,7 @@ def _normalize_gene(q: str) -> str:
     try:
         import tidytcells as tt
 
-        fixed = tt.tr.standardize(q, enforce_functional=False, suppress_warnings=True)
+        fixed = tt.tr.standardize(q, enforce_functional=False, log_failures=False)
         return fixed or q.upper()
     except Exception:
         return q.upper()
@@ -58,7 +59,7 @@ def route(query: str, input_type: str = "auto") -> RoutedQuery:
         return RoutedQuery("allele" if "*" in q else "gene_name", norm)
 
     s = q.upper().replace(" ", "").replace("\n", "")
-    if s and all(c in _AA for c in s):
+    if s and all(c in _AA_EXT for c in s):
         if set(s) & _AA_ONLY:
             return RoutedQuery("raw_aa", s)
         acgt_frac = sum(c in _DNA for c in s) / len(s)

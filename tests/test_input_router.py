@@ -29,3 +29,9 @@ def test_iupac_ambiguous_flags():
     # all letters in the aa alphabet, no aa-only signature letter, low ACGT fraction
     r = route("RYSWKMRYSWKM", "auto")
     assert any(c == "ambiguous_alphabet" for c, _ in r.warnings)
+
+def test_unresolved_residue_x_is_protein():
+    assert route("CASSXYEQYF", "auto").detected_type == "raw_aa"
+
+def test_stop_marker_is_protein():
+    assert route("CASS*", "auto").detected_type == "raw_aa"
