@@ -17,34 +17,24 @@ from .models import IEDBHit, SearchRequest
 def _run_search(req: SearchRequest):
     """Run the async `search()` coroutine from sync code.
 
-    Deliberately avoids `asyncio.run()`: it tears down the loop it creates
-    (via `set_event_loop(None)`) on exit, which permanently breaks any other
-    test or caller in the same thread that later relies on
-    `asyncio.get_event_loop()`. Instead this reuses (or lazily creates and
-    keeps) a loop on the current thread, mirroring what `asyncio.run` does
-    minus the destructive teardown.
-
-    Returns `None` (treated as "no result") if a loop is already running in
-    this thread (e.g. we were called from inside an async context) or if
-    anything else goes wrong obtaining/using a loop.
+    Never touches `asyncio.set_event_loop()` (which is what poisoned the
+    thread's global loop and broke unrelated tests earlier); always closes any
+    loop it creates. Returns `None` (treated as "no result") when we're already
+    inside a running loop, since we cannot block on it synchronously.
     """
+    # If we're already inside a running loop, we can't block; degrade gracefully.
     try:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = None
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass  # no running loop -> safe to create one below
+    else:
+        return None  # caller treats None as "no result"
 
-        if loop is not None and loop.is_running():
-            # Can't block synchronously on a loop that's already running.
-            return None
-
-        if loop is None or loop.is_closed():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
+    loop = asyncio.new_event_loop()
+    try:
         return loop.run_until_complete(search(req))
-    except Exception:
-        return None
+    finally:
+        loop.close()
 
 
 def lookup_known_epitopes(
@@ -79,14 +69,19 @@ def lookup_known_epitopes(
 def resolve_id(source: str, ident: str) -> dict:
     """Best-effort resolve a `vdjdb:`/`iedb:` id via the same search layer.
 
-    Returns `{}` on any failure; the caller is responsible for surfacing a
-    `source_unavailable` warning in that case.
+    NOTE: `SearchRequest`/`SearchIndex` have no id filter field, so this cannot
+    do true server-side id resolution within sub-project A (we must not modify
+    `search()`/models here). It pulls a page of records and strictly matches
+    `ident` client-side; the common no-live-server case returns `{}` and the
+    dossier degrades to `source_unavailable` + partial. Reliable id resolution
+    needs a dedicated id filter on SearchRequest/SearchIndex, deferred beyond
+    sub-project A. Never fabricates a record. Returns `{}` on any failure.
     """
     try:
-        gene_source = source if source in ("vdjdb", "iedb", "hla", "tcr", "mhc") else None
-        if gene_source is None:
+        # The router only ever produces vdjdb/iedb sources for id inputs.
+        if source not in ("vdjdb", "iedb"):
             return {}
-        req = SearchRequest(source=gene_source, limit=1)
+        req = SearchRequest(source=source, limit=50)
         resp = _run_search(req)
         if resp is None or not resp.records:
             return {}
