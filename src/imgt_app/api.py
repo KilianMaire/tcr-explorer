@@ -1072,6 +1072,17 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <button type="submit">Align</button></form>
 <div id="a_out"></div>
 </details>
+<details class="advanced" open>
+<summary>Reconstruct a full chain</summary>
+<p class="muted">Build the full membrane-bound chain from a V gene, J gene, and CDR3. The variable domain is derived from IMGT germline; the constant region is vendored reference data (mouse is oracle-validated, human is not). The germline allele defaults to *01 unless you write it into the gene name (e.g. TRAV7-4*02).</p>
+<form id="rcf">
+<select id="rc_sp"><option>human</option><option>mouse</option></select>
+<input id="rc_v" placeholder="V gene e.g. TRBV19" value="TRBV19">
+<input id="rc_j" placeholder="J gene e.g. TRBJ1-4" value="TRBJ1-4">
+<input id="rc_cdr3" placeholder="CDR3 aa e.g. CASSMADRKFF" value="CASSMADRKFF">
+<button type="submit">Reconstruct</button></form>
+<div id="rc_out"></div>
+</details>
 <script>
 const f=document.getElementById('f'),askOut=document.getElementById('askOut'),recOut=document.getElementById('recOut'),echoEl=document.getElementById('echo'),xmhc=document.getElementById('xmhc');
 let lastQuery=null,lastSpecies=null;
@@ -1211,6 +1222,28 @@ function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <
  }
  h+='</pre>';
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
+ return h+'</div>';}
+const rcf=document.getElementById('rcf'),rc_out=document.getElementById('rc_out');
+rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Reconstructing...';rc_out.innerHTML='<p class="loading">Reconstructing...</p>';
+ try{
+  const r=await fetch('/reconstruct',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({v_gene:document.getElementById('rc_v').value,
+    j_gene:document.getElementById('rc_j').value,
+    cdr3_aa:document.getElementById('rc_cdr3').value,
+    species:document.getElementById('rc_sp').value})});
+  if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();rc_out.innerHTML=renderReconstruct(b);
+ }catch(err){rc_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
+function seqBlock(label,seq){if(!seq)return '';return '<p class="muted" style="margin:.3rem 0 .1rem">'+esc(label)+' ('+seq.length+' aa)</p><div class="comp" style="word-break:break-all;white-space:pre-wrap">'+esc(seq)+'</div>';}
+function renderReconstruct(b){
+ if(!b.v_found||!b.j_found){return '<p class="warn">Germline not found'+(!b.v_found?' for V '+esc(b.v_gene):'')+(!b.j_found?' for J '+esc(b.j_gene):'')+'. Check the gene names.</p>';}
+ let h='<div class="card"><h3>'+esc(b.v_gene)+' + '+esc(b.cdr3_aa)+' + '+esc(b.j_gene)+' <span class="muted">('+esc(b.species)+', V '+esc(b.v_allele_used||'?')+' / J '+esc(b.j_allele_used||'?')+')</span></h3>';
+ h+=seqBlock('variable domain',b.full_aa);
+ if(b.full_chain_aa){h+=seqBlock('full chain (variable + constant, reconstructed)',b.full_chain_aa);
+  h+='<p class="kind">constant: '+esc(b.constant_source||'')+'</p>';}
+ else{h+='<p class="muted">Full chain unavailable: no vendored constant region for '+esc(b.species)+' '+esc((b.v_gene||'').slice(0,3))+'.</p>';}
+ h+='<p class="kind">'+esc(b.note||'')+'</p>';
  return h+'</div>';}
 </script></body></html>"""
 

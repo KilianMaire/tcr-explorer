@@ -264,3 +264,30 @@ def test_ui_natural_language_mouse_query_hides_hla_until_toggled(server):
         f"expected the echoed understanding to name the detected species mouse, got: {echo_text}"
     assert "HLA" not in out_text, \
         "no record card should show an HLA allele while the transgenic toggle is off"
+
+
+def test_ui_reconstruction_panel_builds_full_chain(server):
+    """The reconstruction panel takes V + J + CDR3 + species and renders the
+    full membrane-bound chain, the germline allele used, and the constant-region
+    provenance (an oracle-validated mouse example)."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.select_option("#rc_sp", "mouse")
+        page.fill("#rc_v", "TRBV19")
+        page.fill("#rc_j", "TRBJ1-4")
+        page.fill("#rc_cdr3", "CASSMADRKFF")
+        page.click("#rcf button")
+        page.wait_for_function(
+            "document.querySelector('#rc_out').innerText.includes('full chain')", timeout=8000)
+        text = page.locator("#rc_out").inner_text()
+        browser.close()
+    assert errors == [], f"reconstruction UI console errors: {errors}"
+    assert "CASSMADRKFF" in text, "the CDR3 should appear in the reconstructed chain"
+    assert "EDLRNVTPP" in text, "the mouse constant region should be appended"
+    assert "*01" in text, "the germline allele used should be reported"
+    assert "oracle-validated" in text, "the constant-region provenance should be shown"
