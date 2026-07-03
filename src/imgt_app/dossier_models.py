@@ -92,6 +92,19 @@ class SimilarResponse(BaseModel):
     total_candidates: int = 0
     warnings: list["DossierWarning"] = Field(default_factory=list)
 
+class AskRequest(BaseModel):
+    query: str = Field(..., description="A free-text question about a TCR.", examples=["annotate CASSLGTEAFF", "what does TRBV20-1 recognise?"])
+    species: SpeciesType = "human"
+
+class AskResponse(BaseModel):
+    intent: str
+    plan_source: str          # "llm" | "heuristic"
+    llm_used: bool
+    dossier: Optional["TCRDossier"] = None
+    neighbours_result: Optional["SimilarResponse"] = None
+    search_result: Optional[Any] = None   # SearchResponse
+    warnings: list["DossierWarning"] = Field(default_factory=list)
+
 class TCRDossier(BaseModel):
     schema_version: str = "1.0"
     status: DossierStatus
