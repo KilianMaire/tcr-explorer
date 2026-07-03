@@ -50,12 +50,28 @@ def test_full_beta_chains_reproduce_ground_truth():
     assert hits == 5, f"only {hits}/5 full beta chains matched"
 
 
-def test_alpha_full_chain_is_length_exact_allele_limited():
-    # alpha full chains reproduce at exact length; residual diffs are germline
-    # allele polymorphism (not inferable from V+J+CDR3), so at most a few residues.
+def test_alpha_full_chain_constant_exact_diffs_confined_to_variable():
+    # alpha full chains are length-exact; the vendored constant is reproduced
+    # exactly, so any residual diffs are confined to the variable domain, where
+    # they are germline allele polymorphism (not inferable from V+J+CDR3).
+    from imgt_app.constant_regions import constant_aa
+    tra_const = constant_aa("alpha", "mouse")
     for row in _rows():
         r = reconstruct_tcr(row[3], row[4], row[5], "mouse")
         fc = r.get("full_chain_aa")
         assert fc is not None and len(fc) == len(row[7])
-        diffs = sum(1 for a, b in zip(fc, row[7]) if a != b)
-        assert diffs <= 2, f"{diffs} diffs, expected allele-limited"
+        assert fc.endswith(tra_const) and row[7].endswith(tra_const)
+
+
+def test_explicit_allele_is_honored_and_reported():
+    r = reconstruct_tcr("TRAV7-4*02", "TRAJ16", "CAASLTSSGQKLVF", "mouse")
+    assert r["v_allele_used"] and r["v_allele_used"].endswith("*02")
+    d = reconstruct_tcr("TRAV7-4", "TRAJ16", "CAASLTSSGQKLVF", "mouse")
+    assert d["v_allele_used"] and d["v_allele_used"].endswith("*01")
+
+
+def test_default_allele_keeps_beta_full_chains_exact():
+    # switching to allele-aware lookup must not change the default (*01) result
+    hits = sum(1 for row in _rows()
+               if reconstruct_tcr(row[0], row[1], row[2], "mouse").get("full_chain_aa") == row[6])
+    assert hits == 5

@@ -33,7 +33,6 @@ from .cdr_enricher import (
     _SPECIES_STITCHR,
     _gene_to_chain,
     _stitchr_data_dir,
-    _cached_v_map,
     _translate,
 )
 
@@ -109,6 +108,76 @@ def _load_j_region_map(chain: str, species: str) -> dict[str, str]:
 @lru_cache(maxsize=8)
 def _cached_j_map(chain: str, species_str: str) -> dict[str, str]:
     return _load_j_region_map(chain, species_str)
+
+
+def _load_allele_map(chain: str, species: str, markers: tuple[str, ...]) -> dict[str, str]:
+    """Read the stitchr FASTA and return {full_allele_name: nt_seq} for entries
+    whose segment marker matches, keyed by the IMGT allele (e.g. TRAV6-7/DV9*03).
+    Unlike the gene-base maps this keeps every allele so a caller can request a
+    specific one."""
+    data_dir = _stitchr_data_dir()
+    if data_dir is None:
+        return {}
+    fa_path = data_dir / species.upper() / f"{chain.upper()}.fasta"
+    if not fa_path.exists():
+        return {}
+    out: dict[str, str] = {}
+    header = ""
+    parts_buf: list[str] = []
+
+    def _commit() -> None:
+        if not header:
+            return
+        seq = "".join(parts_buf).upper()
+        fields = header.split("|")
+        if len(fields) < 2:
+            return
+        segment = fields[-1].strip().upper()
+        if not any(m in segment for m in markers):
+            return
+        allele = fields[1].strip().upper()
+        out.setdefault(allele, seq)
+
+    with fa_path.open() as fh:
+        for line in fh:
+            line = line.rstrip()
+            if line.startswith(">"):
+                _commit()
+                header = line[1:]
+                parts_buf = []
+            else:
+                parts_buf.append(line)
+    _commit()
+    return out
+
+
+@lru_cache(maxsize=8)
+def _v_allele_map(chain: str, species_str: str) -> dict[str, str]:
+    return _load_allele_map(chain, species_str, ("VARIABLE", "V-REGION"))
+
+
+@lru_cache(maxsize=8)
+def _j_allele_map(chain: str, species_str: str) -> dict[str, str]:
+    return _load_allele_map(chain, species_str, ("JOINING", "J-REGION"))
+
+
+def _resolve_germline(gene: str, allele_map: dict[str, str]) -> tuple[str, Optional[str]]:
+    """Resolve a gene name to (nt_seq, allele_used). An explicit allele in the
+    gene name (TRAV7-4*02) is honored when present; otherwise *01 is preferred,
+    falling back to the lowest-numbered allele available. The allele actually
+    used is returned so callers can report it. The germline allele cannot be
+    inferred from V plus J plus CDR3 alone, so a bare gene name defaults to *01."""
+    base = _germline_key(gene.split("*")[0].strip().upper())
+    parts = gene.split("*")
+    requested = parts[1].strip().upper() if len(parts) > 1 and parts[1].strip() else None
+    if requested and f"{base}*{requested}" in allele_map:
+        name = f"{base}*{requested}"
+        return allele_map[name], name
+    candidates = sorted(k for k in allele_map if k.split("*")[0] == base)
+    if not candidates:
+        return "", None
+    name = f"{base}*01" if f"{base}*01" in allele_map else candidates[0]
+    return allele_map[name], name
 
 
 # ---------------------------------------------------------------------------
@@ -257,11 +326,10 @@ def reconstruct_tcr(
     v_gene_base = v_gene.split("*")[0].strip().upper()
     j_gene_base = j_gene.split("*")[0].strip().upper()
 
-    v_map = _cached_v_map(chain, stitchr_species)
-    j_map = _cached_j_map(chain, stitchr_species)
-
-    v_nt = v_map.get(_germline_key(v_gene_base), "")
-    j_nt = j_map.get(_germline_key(j_gene_base), "")
+    # Allele-aware germline: honor an explicit allele in the gene name, else
+    # default to *01. The allele used is reported (see v_allele_used below).
+    v_nt, v_allele_used = _resolve_germline(v_gene, _v_allele_map(chain, stitchr_species))
+    j_nt, j_allele_used = _resolve_germline(j_gene, _j_allele_map(chain, stitchr_species))
 
     cdr3_nt = back_translate(cdr3_aa)
 
@@ -302,6 +370,8 @@ def reconstruct_tcr(
     return {
         "v_gene": v_gene_base,
         "j_gene": j_gene_base,
+        "v_allele_used": v_allele_used,
+        "j_allele_used": j_allele_used,
         "cdr3_aa": cdr3_aa,
         "species": species,
         "full_nt": full_nt,
