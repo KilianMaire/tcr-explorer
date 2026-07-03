@@ -7,3 +7,4 @@ logs/
 .env
 .DS_Store
 .pytest_cache/
+data/raw/
