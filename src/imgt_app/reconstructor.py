@@ -28,6 +28,7 @@ import re
 from functools import lru_cache
 from typing import Optional
 
+from .constant_regions import constant_aa
 from .cdr_enricher import (
     _SPECIES_STITCHR,
     _gene_to_chain,
@@ -287,6 +288,17 @@ def reconstruct_tcr(
         full_nt = v_prefix + cdr3_nt + j_suffix
         full_aa = _translate(full_nt).rstrip("*") or None
 
+    # Append the curated membrane-bound constant region (invariant per species
+    # and chain) to form the full chain. Only the variable domain is derived
+    # from V/J germline; the constant is vendored reference data.
+    chain_name = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}.get(chain, "")
+    constant = constant_aa(chain_name, species) if full_aa else None
+    full_chain_aa = (full_aa + constant) if (full_aa and constant) else None
+    constant_source = (
+        f"curated membrane-bound {chain_name} constant ({species.lower()})"
+        if constant else None
+    )
+
     return {
         "v_gene": v_gene_base,
         "j_gene": j_gene_base,
@@ -294,6 +306,8 @@ def reconstruct_tcr(
         "species": species,
         "full_nt": full_nt,
         "full_aa": full_aa,
+        "full_chain_aa": full_chain_aa,
+        "constant_source": constant_source,
         "v_region_nt": v_nt or None,
         "cdr3_nt": cdr3_nt,
         "j_region_nt": j_nt or None,

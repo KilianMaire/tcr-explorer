@@ -37,3 +37,25 @@ def test_all_beta_variable_domains_reproduce_ground_truth():
         if got == _var(trb_full, TRBC):
             hits += 1
     assert hits == 5, f"only {hits}/5 beta variable domains matched"
+
+
+def test_full_beta_chains_reproduce_ground_truth():
+    # variable domain (V+CDR3+J) plus the vendored constant reproduces the
+    # complete membrane-bound beta chains byte-exact for all 5 rows.
+    hits = 0
+    for row in _rows():
+        r = reconstruct_tcr(row[0], row[1], row[2], "mouse")
+        if r.get("full_chain_aa") == row[6]:
+            hits += 1
+    assert hits == 5, f"only {hits}/5 full beta chains matched"
+
+
+def test_alpha_full_chain_is_length_exact_allele_limited():
+    # alpha full chains reproduce at exact length; residual diffs are germline
+    # allele polymorphism (not inferable from V+J+CDR3), so at most a few residues.
+    for row in _rows():
+        r = reconstruct_tcr(row[3], row[4], row[5], "mouse")
+        fc = r.get("full_chain_aa")
+        assert fc is not None and len(fc) == len(row[7])
+        diffs = sum(1 for a, b in zip(fc, row[7]) if a != b)
+        assert diffs <= 2, f"{diffs} diffs, expected allele-limited"
