@@ -1017,6 +1017,7 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  h1{font-size:1.3rem} input,select,button{font-size:1rem;padding:.4rem}
  #q{width:60%} .card{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
  .warn{color:#a15c00} .syn{color:#7a3e00;font-style:italic} table{border-collapse:collapse;width:100%}
+ .loading{color:#0b5;font-weight:600} .loading::after{content:'';display:inline-block;width:.7em;height:.7em;margin-left:.4em;border:2px solid #0b5;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle} @keyframes spin{to{transform:rotate(360deg)}} button:disabled{opacity:.6}
  td,th{border:1px solid #eee;padding:.3rem;text-align:left;font-size:.9rem} .muted{color:#666}
  h3{margin:.3rem 0}
 </style></head><body>
@@ -1037,13 +1038,18 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <div id="a_out"></div>
 <script>
 const f=document.getElementById('f'),out=document.getElementById('out');
-f.addEventListener('submit',async e=>{e.preventDefault();out.innerHTML='<p class="muted">...</p>';
- const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({query:document.getElementById('q').value,species:document.getElementById('sp').value})});
- const b=await r.json();out.innerHTML=render(b);});
+f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';out.innerHTML='<p class="loading">Searching...</p>';
+ try{
+  const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({query:document.getElementById('q').value,species:document.getElementById('sp').value})});
+  if(!r.ok){out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();out.innerHTML=render(b);
+ }catch(err){out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
  if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} · species: ${esc(d.species)} · status: ${esc(d.status)}</p>`;
+  if(d.status==='partial' && !(d.genes&&d.genes.v) && !(d.known_epitopes&&d.known_epitopes.length)){h+='<p class="muted">A CDR3 on its own cannot identify V/D/J. Provide the V and J genes (V+J+CDR3), a gene name, or a full V(D)J sequence to get an annotation.</p>';}
   if(d.genes&&d.genes.v){h+=`<p>V: ${esc(d.genes.v.call)} (${esc(d.genes.v.score_method)})</p>`;}
   if(d.regions){h+='<p>';for(const k of ['cdr1','cdr2','cdr3']){if(d.regions[k]&&d.regions[k].aa)h+=`${k}: <code>${esc(d.regions[k].aa)}</code> `;}h+='</p>';}
   if(d.junction&&d.junction.cdr3_nt_is_synthetic){h+=`<p class="syn">cdr3_nt is synthetic (back-translated)</p>`;}
@@ -1058,16 +1064,35 @@ function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">no similar T
  let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
  for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
 const af=document.getElementById('af'),a_out=document.getElementById('a_out');
-af.addEventListener('submit',async e=>{e.preventDefault();a_out.innerHTML='<p class="muted">...</p>';
- const r=await fetch('/v1/tcr/align',{method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({species:document.getElementById('a_sp').value,
-   chain:document.getElementById('a_chain').value,
-   segment:document.getElementById('a_seg').value,
-   translate:document.getElementById('a_translate').checked})});
- const b=await r.json();a_out.innerHTML=renderAlign(b);});
-function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity)</span></h3><pre>';
- for(const rec of (b.records||[]))h+=esc(rec.name.padEnd(20))+' '+esc(rec.aligned)+'<br>';
- h+='<br>'+esc('consensus'.padEnd(20))+' '+esc(b.consensus)+'</pre>';
+af.addEventListener('submit',async e=>{e.preventDefault();const btn=af.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Aligning...';a_out.innerHTML='<p class="loading">Aligning...</p>';
+ try{
+  const r=await fetch('/v1/tcr/align',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({species:document.getElementById('a_sp').value,
+    chain:document.getElementById('a_chain').value,
+    segment:document.getElementById('a_seg').value,
+    translate:document.getElementById('a_translate').checked})});
+  if(!r.ok){a_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();a_out.innerHTML=renderAlign(b);
+ }catch(err){a_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
+function shade(c){c=c||0;if(c>=0.9)return 'background:#08519c;color:#fff';if(c>=0.7)return 'background:#3182bd;color:#fff';if(c>=0.5)return 'background:#6baed6';if(c>=0.3)return 'background:#bdd7e7';return '';}
+function cell(t,s){return '<span style="'+s+'">'+esc(t)+'</span>';}
+function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity, view '+esc(b.view)+')</span></h3>';
+ h+='<p class="muted">Shading shows per-column conservation (darker is more conserved).</p><pre>';
+ const cons=b.conservation||[];
+ for(const rec of (b.records||[])){
+  const name=esc(rec.name.padEnd(12));
+  if(rec.aligned_aa && rec.aligned_nt){
+   let aa=name+' aa  ',nt=name+' nt  ';
+   for(let i=0;i<rec.aligned_aa.length;i++){aa+=cell(' '+rec.aligned_aa[i]+' ',shade(cons[i]));nt+=cell(rec.aligned_nt.substr(3*i,3),shade(cons[i]));}
+   h+=aa+'<br>'+nt+'<br><br>';
+  }else{
+   const s=rec.aligned_aa||rec.aligned||rec.aligned_nt||'';let row=name+'  ';
+   for(let i=0;i<s.length;i++){row+=cell(s[i],shade(cons[i]));}
+   h+=row+'<br>';
+  }
+ }
+ h+='</pre>';
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
  return h+'</div>';}
 </script></body></html>"""

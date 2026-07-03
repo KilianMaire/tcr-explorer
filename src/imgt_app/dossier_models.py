@@ -132,6 +132,8 @@ class TCRDossier(BaseModel):
 class AlignedRecord(BaseModel):
     name: str
     aligned: str
+    aligned_aa: Optional[str] = None   # gapped amino acids (codon-aware view)
+    aligned_nt: Optional[str] = None   # gapped nucleotides, 3 per aa column, in register
 
 class ProvidedSeq(BaseModel):
     name: str
@@ -154,5 +156,7 @@ class MSAResult(BaseModel):
     records: list[AlignedRecord] = Field(default_factory=list)
     consensus: str = ""
     mean_pct_identity: float = 0.0
+    conservation: list[float] = Field(default_factory=list)  # per aa column, 0..1
+    view: str = "nt"                                          # "aa_nt" | "aa" | "nt"
     provenance: list[Provenance] = Field(default_factory=list)
     warnings: list[DossierWarning] = Field(default_factory=list)
