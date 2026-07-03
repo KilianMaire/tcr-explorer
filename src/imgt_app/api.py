@@ -1066,8 +1066,8 @@ af.addEventListener('submit',async e=>{e.preventDefault();a_out.innerHTML='<p cl
    translate:document.getElementById('a_translate').checked})});
  const b=await r.json();a_out.innerHTML=renderAlign(b);});
 function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity)</span></h3><pre>';
- for(const rec of (b.records||[]))h+=esc(rec.name.padEnd(20))+' '+esc(rec.aligned)+'\n';
- h+='\n'+esc('consensus'.padEnd(20))+' '+esc(b.consensus)+'</pre>';
+ for(const rec of (b.records||[]))h+=esc(rec.name.padEnd(20))+' '+esc(rec.aligned)+'<br>';
+ h+='<br>'+esc('consensus'.padEnd(20))+' '+esc(b.consensus)+'</pre>';
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
  return h+'</div>';}
 </script></body></html>"""
