@@ -7,6 +7,7 @@ there is no logic divergence between REST and MCP. Run with:
 from __future__ import annotations
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from .dossier_models import DossierRequest, AskRequest, SimilarResponse
 from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
@@ -14,7 +15,12 @@ from .ask import answer as answer_fn
 
 mcp = FastMCP("imgt-tcr")
 
-@mcp.tool()
+# All tools are read-only lookups: they mutate nothing, are safe to retry, and
+# reach external sources (NCBI/IEDB) for the dossier, so openWorldHint is true.
+_READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
+                             idempotentHint=True, openWorldHint=True)
+
+@mcp.tool(annotations=_READ_ONLY)
 def get_tcr_dossier(query: str, species: str = "human", input_type: str = "auto",
                     mode: str = "fast", include: Optional[list[str]] = None,
                     v_gene: Optional[str] = None, j_gene: Optional[str] = None,
@@ -30,7 +36,7 @@ def get_tcr_dossier(query: str, species: str = "human", input_type: str = "auto"
                          j_gene=j_gene, cdr3_aa=cdr3_aa)
     return build_dossier(req).model_dump()
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def find_similar_tcrs(cdr3: str, v_gene: str, j_gene: str, species: str = "human",
                       top_k: int = 10, min_similarity: float = 0.0) -> dict:
     """Return the nearest KNOWN TCRs to a query CDR3 (with V and J) from the unitcr
@@ -42,7 +48,7 @@ def find_similar_tcrs(cdr3: str, v_gene: str, j_gene: str, species: str = "human
     return SimilarResponse(neighbours=neigh, engine=engine,
                            total_candidates=total, warnings=warnings).model_dump()
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def ask_tcr(query: str, species: str = "human") -> dict:
     """Answer a free-text TCR question by routing it to the dossier, similarity, or
     search capability and returning the structured result. Prefer the specific
