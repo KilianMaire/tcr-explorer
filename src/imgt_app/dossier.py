@@ -258,10 +258,18 @@ def build_dossier(
     # known_epitopes. Never copy a neighbour's epitope into known_epitopes.
     dossier_neighbours: Optional[list] = None
     want_neighbours = ("neighbours" in request.include) or (request.mode == "full")
-    cdr3_q = request.cdr3_aa or (routed.normalized if routed.detected_type == "raw_aa" else None)
-    if want_neighbours and cdr3_q and request.v_gene and request.j_gene:
+    # Fall back to annotated values: a raw query that annotates to V/J/CDR3 should
+    # also drive neighbours, not just an explicit v_gene/j_gene/cdr3_aa request.
+    v_q = request.v_gene or (genes["v"].call if genes.get("v") else None)
+    j_q = request.j_gene or (genes["j"].call if genes.get("j") else None)
+    cdr3_q = (
+        request.cdr3_aa
+        or (junction.cdr3_aa if junction else None)
+        or (routed.normalized if routed.detected_type == "raw_aa" else None)
+    )
+    if want_neighbours and cdr3_q and v_q and j_q:
         neigh, engine, total_n, nwarn = find_similar_tcrs(
-            cdr3_q, request.v_gene, request.j_gene, species=request.species)
+            cdr3_q, v_q, j_q, species=request.species)
         for w in nwarn:
             warnings.append(w)
         if neigh:
