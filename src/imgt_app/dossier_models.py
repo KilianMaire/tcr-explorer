@@ -5,7 +5,7 @@ from .models import IEDBHit
 
 InputType = Literal["auto", "raw_nt", "raw_aa", "gene_name", "allele", "id"]
 ModeType = Literal["fast", "full"]
-IncludeFlag = Literal["sequences", "germline"]
+IncludeFlag = Literal["sequences", "germline", "neighbours"]
 ChainType = Literal["alpha", "beta", "gamma", "delta", "unknown"]
 SpeciesType = Literal["human", "mouse"]
 DossierStatus = Literal["complete", "partial"]
@@ -13,11 +13,13 @@ WarningCode = Literal[
     "igblast_unavailable", "source_unavailable", "ambiguous_gene",
     "ambiguous_alphabet", "unresolved_input_type", "d_segment_unresolved",
     "aa_annotation_limited", "back_translated_nt", "partial_annotation", "timeout",
+    "tcrdist_unavailable", "similarity_index_unavailable", "no_reference_candidates",
+    "species_unsupported",
 ]
-ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes"]
-ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb"]
+ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours"]
+ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb", "unitcr", "tcrdist", "blosum_cdr3"]
 ProvConfidence = Literal["high", "medium", "low"]
-ProvKind = Literal["observed", "germline_lookup", "back_translated"]
+ProvKind = Literal["observed", "germline_lookup", "back_translated", "neighbor_inferred"]
 
 class DossierRequest(BaseModel):
     query: str
@@ -59,6 +61,37 @@ class DossierWarning(BaseModel):
     block: Optional[str] = None
     message: str
 
+class Neighbour(BaseModel):
+    cdr3_b_aa: str
+    v_b_gene: str
+    j_b_gene: str
+    similarity: float
+    """Within-query relative similarity: normalised to the per-query candidate
+    maximum distance, so only similarity==1.0 (identical) is absolute. Callers
+    comparing across queries should threshold on the absolute `distance` field,
+    not on `similarity`."""
+    distance: float
+    epitope_aa: Optional[str] = None
+    mhc_class: Optional[str] = None
+    mhc_a: Optional[str] = None
+    antigen: Optional[str] = None
+    antigen_organism: Optional[str] = None
+    cluster_id: Optional[int] = None
+
+class SimilarRequest(BaseModel):
+    cdr3: str
+    v_gene: str
+    j_gene: str
+    species: SpeciesType = "human"
+    top_k: int = Field(default=10, ge=1, le=200)
+    min_similarity: float = Field(default=0.0, ge=0.0, le=1.0)
+
+class SimilarResponse(BaseModel):
+    neighbours: list[Neighbour] = Field(default_factory=list)
+    engine: str
+    total_candidates: int = 0
+    warnings: list["DossierWarning"] = Field(default_factory=list)
+
 class TCRDossier(BaseModel):
     schema_version: str = "1.0"
     status: DossierStatus
@@ -74,3 +107,4 @@ class TCRDossier(BaseModel):
     known_epitopes_total: int = 0
     provenance: list[Provenance] = Field(default_factory=list)
     warnings: list[DossierWarning] = Field(default_factory=list)
+    neighbours: Optional[list[Neighbour]] = None

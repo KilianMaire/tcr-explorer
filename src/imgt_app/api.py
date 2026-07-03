@@ -17,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
-from .dossier_models import DossierRequest, TCRDossier
+from .dossier_models import DossierRequest, SimilarRequest, SimilarResponse, TCRDossier
 from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
 from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
@@ -961,3 +961,21 @@ def tcr_dossier(req: DossierRequest, request: Request):
     if "text/markdown" in request.headers.get("accept", ""):
         return PlainTextResponse(_dossier_markdown(d), media_type="text/markdown")
     return d
+
+
+@app.post("/v1/tcr/similar", response_model=SimilarResponse)
+def tcr_similar(req: SimilarRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier above: the engine
+    # reads a parquet index off disk, so it runs in FastAPI's threadpool rather
+    # than blocking the event loop.
+    from .similarity import find_similar_tcrs  # local import: avoids import cycles
+
+    neigh, engine, total, warnings = find_similar_tcrs(
+        req.cdr3,
+        req.v_gene,
+        req.j_gene,
+        species=req.species,
+        top_k=req.top_k,
+        min_similarity=req.min_similarity,
+    )
+    return SimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)

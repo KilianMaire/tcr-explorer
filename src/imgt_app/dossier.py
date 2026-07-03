@@ -31,6 +31,7 @@ from .cdr_enricher import get_cdr1_cdr2, _gene_to_chain, _cached_v_map, _transla
 from .reconstructor import reconstruct_tcr
 from .models import IEDBHit
 from .dossier_epitopes import lookup_known_epitopes, resolve_id
+from .similarity import find_similar_tcrs
 
 
 # Map cdr_enricher's chain codes (TRA/TRB/TRG/TRD) to dossier chain names.
@@ -253,6 +254,29 @@ def build_dossier(
                        confidence="high", kind="observed")
         )
 
+    # Neighbours: an inferred, weaker signal, kept strictly separate from
+    # known_epitopes. Never copy a neighbour's epitope into known_epitopes.
+    dossier_neighbours: Optional[list] = None
+    want_neighbours = ("neighbours" in request.include) or (request.mode == "full")
+    # Fall back to annotated values: a raw query that annotates to V/J/CDR3 should
+    # also drive neighbours, not just an explicit v_gene/j_gene/cdr3_aa request.
+    v_q = request.v_gene or (genes["v"].call if genes.get("v") else None)
+    j_q = request.j_gene or (genes["j"].call if genes.get("j") else None)
+    cdr3_q = (
+        request.cdr3_aa
+        or (junction.cdr3_aa if junction else None)
+        or (routed.normalized if routed.detected_type == "raw_aa" else None)
+    )
+    if want_neighbours and cdr3_q and v_q and j_q:
+        neigh, engine, total_n, nwarn = find_similar_tcrs(
+            cdr3_q, v_q, j_q, species=request.species)
+        for w in nwarn:
+            warnings.append(w)
+        if neigh:
+            dossier_neighbours = neigh
+            provenance.append(Provenance(block="neighbours", source="unitcr",
+                confidence="low", kind="neighbor_inferred"))
+
     status = "complete" if (genes["v"] and not warnings) else "partial"
     summary = _summarize(chain, genes, hits)
     return TCRDossier(
@@ -269,6 +293,7 @@ def build_dossier(
         known_epitopes_total=max(total, len(hits)),
         provenance=provenance,
         warnings=warnings,
+        neighbours=dossier_neighbours,
     )
 
 
