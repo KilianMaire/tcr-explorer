@@ -1,6 +1,9 @@
+import pytest
+
 from imgt_app import msa
 from imgt_app.msa import align, center_star_align, to_fasta
 from imgt_app.dossier_models import AlignRequest
+from imgt_app.cdr_enricher import _stitchr_data_dir
 
 
 def test_identical_sequences_no_gaps_full_identity():
@@ -71,3 +74,19 @@ def test_center_star_merge_preserves_column_correspondence(monkeypatch):
 
     starts = {name: motif_start(g) for name, g in aligned}
     assert len(set(starts.values())) == 1, f"motif columns diverge: {starts} / alignment={aligned}"
+
+
+@pytest.mark.skipif(_stitchr_data_dir() is None, reason="stitchr germline data not present")
+def test_translated_germline_set_aligns(monkeypatch):
+    """Translating a germline J-REGION from frame 0 yields proteins containing a
+    stop '*' and other letters near the matrix-alphabet edges. The aa aligner
+    must tolerate the whole germline set (frame-0 translation is acceptable for
+    aligning the set to itself). Regression: previously returned engine='none'
+    with an alignment_failed warning because the growing profile's gapped first
+    row was fed back into PairwiseAligner (which rejects '-')."""
+    monkeypatch.setattr(msa, "clustalo_available", lambda: False)
+    r = align(AlignRequest(species="mouse", chain="TRB", segment="J", translate=True, seq_type="aa"))
+    assert r.engine == "center_star"
+    assert r.n_sequences == 14
+    assert r.alignment_length > 0
+    assert not any(w.code == "alignment_failed" for w in r.warnings)
