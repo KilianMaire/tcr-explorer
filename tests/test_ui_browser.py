@@ -119,3 +119,29 @@ def test_ui_has_no_console_errors_and_forms_work(server):
     assert "chain: beta" in result["gene"] and "TRBV20-1" in result["gene"]
     assert "cannot identify V/D/J" in result["cdr3"], \
         "bare CDR3 should render the guidance hint, not a blank result"
+
+
+def test_ui_align_form_renders_colored_aa_nt(server):
+    if not (_ROOT / "data" / "unitcr_beta_index.parquet").exists():
+        pass  # index not needed for align; germline is
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.select_option("#a_sp", "mouse")
+        page.fill("#a_chain", "TRB")
+        page.select_option("#a_seg", "J")
+        page.check("#a_translate")
+        page.click("#af button")
+        page.wait_for_function(
+            "document.querySelector('#a_out').innerText.includes('engine')", timeout=8000)
+        txt = page.locator("#a_out").inner_text()
+        html = page.locator("#a_out").inner_html()
+        browser.close()
+    assert errors == [], f"align UI console errors: {errors}"
+    assert "view aa_nt" in txt, "translated germline set should render the codon-aware aa+nt view"
+    assert " aa  " in txt and " nt  " in txt, "both an aa row and an nt row should render"
+    assert "background:#" in html, "conservation coloring spans should be present"

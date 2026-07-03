@@ -1075,9 +1075,24 @@ af.addEventListener('submit',async e=>{e.preventDefault();const btn=af.querySele
   const b=await r.json();a_out.innerHTML=renderAlign(b);
  }catch(err){a_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
  finally{btn.disabled=false;btn.textContent=t0;}});
-function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity)</span></h3><pre>';
- for(const rec of (b.records||[]))h+=esc(rec.name.padEnd(20))+' '+esc(rec.aligned)+'<br>';
- h+='<br>'+esc('consensus'.padEnd(20))+' '+esc(b.consensus)+'</pre>';
+function shade(c){c=c||0;if(c>=0.9)return 'background:#08519c;color:#fff';if(c>=0.7)return 'background:#3182bd;color:#fff';if(c>=0.5)return 'background:#6baed6';if(c>=0.3)return 'background:#bdd7e7';return '';}
+function cell(t,s){return '<span style="'+s+'">'+esc(t)+'</span>';}
+function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity, view '+esc(b.view)+')</span></h3>';
+ h+='<p class="muted">Shading shows per-column conservation (darker is more conserved).</p><pre>';
+ const cons=b.conservation||[];
+ for(const rec of (b.records||[])){
+  const name=esc(rec.name.padEnd(12));
+  if(rec.aligned_aa && rec.aligned_nt){
+   let aa=name+' aa  ',nt=name+' nt  ';
+   for(let i=0;i<rec.aligned_aa.length;i++){aa+=cell(' '+rec.aligned_aa[i]+' ',shade(cons[i]));nt+=cell(rec.aligned_nt.substr(3*i,3),shade(cons[i]));}
+   h+=aa+'<br>'+nt+'<br><br>';
+  }else{
+   const s=rec.aligned_aa||rec.aligned||rec.aligned_nt||'';let row=name+'  ';
+   for(let i=0;i<s.length;i++){row+=cell(s[i],shade(cons[i]));}
+   h+=row+'<br>';
+  }
+ }
+ h+='</pre>';
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
  return h+'</div>';}
 </script></body></html>"""

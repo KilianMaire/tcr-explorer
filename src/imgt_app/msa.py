@@ -23,6 +23,7 @@ from collections import Counter
 
 from Bio.Align import PairwiseAligner, substitution_matrices
 
+from .cdr_enricher import _translate
 from .dossier_models import AlignedRecord, AlignRequest, DossierWarning, MSAResult, Provenance
 from .germline_sets import resolve_sequences
 
@@ -182,6 +183,80 @@ def _mean_identity(aligned):
     return round(total / pairs, 2) if pairs else 0.0
 
 
+def _pick_frame(nt_list):
+    """Reading frame (0/1/2) minimizing total stop/ambiguous codons across the set."""
+    best_f, best_pen = 0, None
+    for f in (0, 1, 2):
+        pen = sum(_translate(nt[f:]).count("*") + _translate(nt[f:]).count("?") for nt in nt_list)
+        if best_pen is None or pen < best_pen:
+            best_f, best_pen = f, pen
+    return best_f
+
+
+def _translate_in_frame(nt, frame):
+    """Return (aa, coding_nt) where coding_nt is the in-frame slice, len == 3*len(aa)."""
+    usable = (len(nt) - frame) // 3 * 3
+    coding = nt[frame:frame + usable]
+    return _translate(coding), coding
+
+
+def _expand_to_nt(gapped_aa, coding_nt):
+    """Thread the observed codons under a gapped aa row; gap columns become '---'."""
+    out, pos = [], 0
+    for ch in gapped_aa:
+        if ch == "-":
+            out.append("---")
+        else:
+            out.append(coding_nt[pos:pos + 3])
+            pos += 3
+    return "".join(out)
+
+
+def _conservation(aligned):
+    """Per-column fraction that is the most common residue (gaps count against)."""
+    if not aligned:
+        return []
+    L = len(aligned[0][1])
+    cons = []
+    for i in range(L):
+        col = [a[1][i] for a in aligned]
+        non_gap = [c for c in col if c != "-"]
+        cons.append(round(Counter(non_gap).most_common(1)[0][1] / len(col), 3) if non_gap else 0.0)
+    return cons
+
+
+def _align_codon_aware(request, prov, warnings):
+    raw = request.model_copy(update={"translate": False})
+    seqs, more = resolve_sequences(raw)
+    warnings = warnings + more
+    if len(seqs) < 2:
+        warnings.append(DossierWarning(code="too_few_sequences", block="alignment",
+                                       message="at least two sequences are required to align"))
+        return MSAResult(engine="none", seq_type=request.seq_type, n_sequences=len(seqs),
+                         alignment_length=0, records=[], view="aa_nt", provenance=prov, warnings=warnings)
+    # Per-sequence reading frame: each row threads its own codons under its own aa,
+    # and the aa alignment supplies the cross-row column correspondence. A single
+    # set-wide frame would mistranslate germline segments that sit in different
+    # phases (e.g. mouse TRBJ), breaking the aa alignment.
+    triples = [(n, *_translate_in_frame(nt, _pick_frame([nt]))) for n, nt in seqs]
+    try:
+        aligned_aa = center_star_align([(n, aa) for n, aa, _ in triples], "aa")
+    except Exception:
+        warnings.append(DossierWarning(code="alignment_failed", block="alignment",
+                                       message="alignment engine failed"))
+        return MSAResult(engine="none", seq_type=request.seq_type, n_sequences=len(seqs),
+                         alignment_length=0, records=[], view="aa_nt", provenance=prov, warnings=warnings)
+    L = max(len(s) for _, s in aligned_aa)
+    aligned_aa = [(n, s + "-" * (L - len(s))) for n, s in aligned_aa]
+    coding_by = {n: c for n, _, c in triples}
+    records = [AlignedRecord(name=n, aligned=gaa, aligned_aa=gaa,
+                             aligned_nt=_expand_to_nt(gaa, coding_by[n])) for n, gaa in aligned_aa]
+    return MSAResult(engine="center_star", seq_type=request.seq_type, n_sequences=len(records),
+                     alignment_length=L, records=records, consensus=_consensus(aligned_aa),
+                     mean_pct_identity=_mean_identity(aligned_aa), conservation=_conservation(aligned_aa),
+                     view="aa_nt", provenance=prov, warnings=warnings)
+
+
 def _run_clustalo(seqs):
     with tempfile.TemporaryDirectory() as d:
         inp = os.path.join(d, "in.fa")
@@ -208,11 +283,14 @@ def _run_clustalo(seqs):
 
 
 def align(request: AlignRequest) -> MSAResult:
-    seqs, warnings = resolve_sequences(request)
     prov = []
     if request.chain or request.genes:
         prov.append(Provenance(block="alignment", source="cdr_enricher",
                                 confidence="high", kind="germline_lookup"))
+    # Codon-aware AA+NT view: only when translating nucleotide input.
+    if request.translate and request.seq_type != "aa":
+        return _align_codon_aware(request, prov, [])
+    seqs, warnings = resolve_sequences(request)
     if len(seqs) < 2:
         warnings.append(DossierWarning(code="too_few_sequences", block="alignment",
                                         message="at least two sequences are required to align"))
@@ -243,9 +321,11 @@ def align(request: AlignRequest) -> MSAResult:
         engine = "center_star"
     L = max(len(s) for _, s in aligned)
     aligned = [(n, s + "-" * (L - len(s))) for n, s in aligned]
+    view = "aa" if request.seq_type == "aa" else "nt"
     return MSAResult(engine=engine, seq_type=request.seq_type, n_sequences=len(aligned),
                       alignment_length=L, records=[AlignedRecord(name=n, aligned=s) for n, s in aligned],
                       consensus=_consensus(aligned), mean_pct_identity=_mean_identity(aligned),
+                      conservation=_conservation(aligned), view=view,
                       provenance=prov, warnings=warnings)
 
 
