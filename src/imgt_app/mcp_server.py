@@ -5,6 +5,7 @@ there is no logic divergence between REST and MCP. Run with:
     python -m imgt_app.mcp_server
 """
 from __future__ import annotations
+import dataclasses
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -14,6 +15,7 @@ from .dossier_models import AlignRequest as _AlignRequest
 from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
 from .ask import answer as answer_fn
 from .records import retrieve_records as retrieve_records_fn
+from .tcr_align import assign as assign_fn
 
 mcp = FastMCP("imgt-tcr")
 
@@ -91,6 +93,14 @@ def retrieve_tcr_records(query: str = "", cdr3: str = "", cdr3_b: str = "",
         top_k=top_k,
     )
     return retrieve_records_fn(req).model_dump()
+
+@mcp.tool(annotations=_READ_ONLY)
+def assign_tcr_alleles(sequence: str, species: str = "", chain: str = "", want_d: bool = False) -> dict:
+    """Identify the composing IMGT germline V and J alleles (and D, constant when
+    present) for any TCR sequence, extract the CDR3, and reconstruct the canonical
+    chain. A bare CDR3 yields a J allele only."""
+    result = assign_fn(sequence, species=species or None, chain=chain or None, want_d=want_d)
+    return dataclasses.asdict(result)
 
 
 def main() -> None:
