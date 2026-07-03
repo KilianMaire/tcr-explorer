@@ -191,6 +191,37 @@ def _j_frame_and_fw(j_nt: str) -> tuple[int, int]:
     return fewest_stops_frame, -1
 
 
+def _germline_key(gene_base: str) -> str:
+    """Map an alpha/delta dual gene written with a dash (TRAV6-7-DV9) to the
+    germline key convention with a slash (TRAV6-7/DV9). Idempotent for names
+    already using a slash or with no DV segment."""
+    return re.sub(r"-DV(\d)", r"/DV\1", gene_base)
+
+
+def _j_suffix_by_overlap(j_nt: str, cdr3_aa: str) -> Optional[str]:
+    """Return the J-REGION nt that contributes FR4 after the CDR3.
+
+    The J germline 5' end overlaps the CDR3 (the CDR3 C-terminal residues are
+    J encoded), so FR4 begins right after the longest CDR3 suffix that appears
+    in the J N-terminal residues. This works for J genes with no canonical
+    FG-x-G motif. Returns None if no overlap is found in any reading frame.
+    """
+    best = None  # (frame, fr4_residue_start, overlap_len)
+    for frame in (0, 1, 2):
+        aa = _translate(j_nt[frame:])
+        head = aa[:15]  # FR4 starts early; do not match deep into the J
+        for k in range(min(len(cdr3_aa), len(head)), 0, -1):
+            pos = head.find(cdr3_aa[-k:])
+            if pos >= 0 and "*" not in aa[: pos + k]:
+                if best is None or k > best[2]:
+                    best = (frame, pos + k, k)
+                break
+    if best is None:
+        return None
+    frame, fr4_start, _ = best
+    return j_nt[frame + fr4_start * 3 :]
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -228,8 +259,8 @@ def reconstruct_tcr(
     v_map = _cached_v_map(chain, stitchr_species)
     j_map = _cached_j_map(chain, stitchr_species)
 
-    v_nt = v_map.get(v_gene_base, "")
-    j_nt = j_map.get(j_gene_base, "")
+    v_nt = v_map.get(_germline_key(v_gene_base), "")
+    j_nt = j_map.get(_germline_key(j_gene_base), "")
 
     cdr3_nt = back_translate(cdr3_aa)
 
@@ -244,11 +275,14 @@ def reconstruct_tcr(
         # directly rather than assuming the sequence ends 3 nt after it.
         v_prefix = v_nt[: _v_cys_cut(v_nt)]
 
-        # J-REGION coding frame is not always frame 0 (e.g. TRBJ1-1 codes
-        # in frame 2), so detect the frame and the conserved Phe/Trp118
-        # codon within it before slicing.
-        frame, fw_nt = _j_frame_and_fw(j_nt)
-        j_suffix = j_nt[fw_nt + 3 :] if fw_nt >= 0 else j_nt[frame:]
+        # FR4 begins right after the CDR3. The J germline 5' overlaps the CDR3
+        # C-terminus, so align them to find where FR4 starts. This is robust for
+        # J genes without a canonical FG-x-G motif (e.g. TRBJ1-6). Fall back to
+        # motif-based frame detection only when no overlap is found.
+        j_suffix = _j_suffix_by_overlap(j_nt, cdr3_aa)
+        if j_suffix is None:
+            frame, fw_nt = _j_frame_and_fw(j_nt)
+            j_suffix = j_nt[fw_nt + 3 :] if fw_nt >= 0 else j_nt[frame:]
 
         full_nt = v_prefix + cdr3_nt + j_suffix
         full_aa = _translate(full_nt).rstrip("*") or None
