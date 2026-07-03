@@ -33,19 +33,40 @@ def _run_search_sync(req: SearchRequest):
 _DOSSIER_TYPES = ("raw_nt", "raw_aa", "gene_name", "allele", "id")
 
 
+def _looks_like_cdr3(tok: str) -> bool:
+    """A protein token of CDR3-ish length: the thing a user wants looked up."""
+    r = route(tok, "auto")
+    return r.detected_type == "raw_aa" and 8 <= len(tok) <= 22
+
+
+def _find_gene(tokens: list[str], seg: str) -> str:
+    """Return the first token that looks like a TCR gene of segment seg (V/J)."""
+    for t in tokens:
+        u = t.upper()
+        if len(u) >= 5 and u[:2] == "TR" and u[2] in "ABGD" and u[3:4] == seg:
+            return t
+    return ""
+
+
 def _heuristic_plan(query: str, species: str) -> dict:
     q = query.lower()
-    if any(k in q for k in ("similar", "nearest", "neighbour", "neighbor", "close to")):
-        return {"intent": "similar", "query": query}
-    # Only accept an unambiguous classification (no router warnings). Plain
-    # English words are frequently spellable in the amino-acid alphabet (e.g.
-    # "what", "search") and the router flags those with an ambiguous_alphabet
-    # warning; without this guard such filler words would be misrouted to
-    # dossier ahead of the real gene/sequence token later in the query.
-    for tok in query.split():
+    toks = query.split()
+    cdr3 = next((t for t in toks if _looks_like_cdr3(t)), "")
+    vg, jg = _find_gene(toks, "V"), _find_gene(toks, "J")
+    forced_similar = any(k in q for k in ("similar", "nearest", "neighbour", "neighbor", "close to"))
+    # A CDR3 is present: look it up against the known-TCR reference (nearest known
+    # TCRs and their epitopes). This is the core purpose of the tool for a CDR3, so
+    # it takes priority over germline annotation (which needs V and J anyway).
+    if cdr3 or forced_similar:
+        return {"intent": "similar", "cdr3_aa": cdr3, "v_gene": vg, "j_gene": jg}
+    # Otherwise a gene name or a raw sequence: annotate it in a dossier. Only accept
+    # an unambiguous classification (no router warnings) so English filler words
+    # spellable in the amino-acid alphabet do not get misrouted ahead of the real
+    # gene/sequence token.
+    for tok in toks:
         r = route(tok, "auto")
         if r.detected_type in _DOSSIER_TYPES and not r.warnings:
-            return {"intent": "dossier", "query": tok}
+            return {"intent": "dossier", "query": tok, "v_gene": vg, "j_gene": jg}
     return {"intent": "search", "query": query}
 
 
