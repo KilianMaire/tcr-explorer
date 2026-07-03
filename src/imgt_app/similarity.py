@@ -60,8 +60,12 @@ def _load_index(path: str) -> Optional[pd.DataFrame]:
     return pd.read_parquet(p)
 
 
-def _v_family(v: str) -> str:
-    return (v or "").split("*")[0].split("-")[0]
+def _v_family(v: object) -> str:
+    # The multi-source index carries NaN (float) gene values; a NaN is truthy so
+    # "v or ''" would not guard it. Coerce anything non-string to empty.
+    if not isinstance(v, str):
+        return ""
+    return v.split("*")[0].split("-")[0]
 
 
 def _clean(v):
