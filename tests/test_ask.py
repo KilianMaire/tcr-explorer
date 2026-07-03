@@ -28,22 +28,32 @@ def test_llm_malformed_similar_params_fall_back_to_heuristic(monkeypatch):
     assert resp.neighbours_result is not None
 
 
-def test_cdr3_routes_to_similarity_lookup(monkeypatch):
-    # A bare CDR3 is the tool's core lookup case: find known TCRs (and their
-    # epitopes) matching it, rather than a dead-end germline annotation.
+def test_bare_cdr3_routes_to_similarity_lookup(monkeypatch):
+    # A bare CDR3 (no genes) is the tool's core lookup case: find known TCRs (and
+    # their epitopes) matching it, rather than a dead-end germline annotation.
     monkeypatch.setattr(ask, "llm_available", lambda: False)
     captured = {}
 
     def fake_similar(cdr3, v, j, species="human", **k):
-        captured.update(cdr3=cdr3, v=v, j=j)
+        captured.update(cdr3=cdr3)
         return ([], "blosum_cdr3", 0, [])
 
     monkeypatch.setattr(ask, "find_similar_tcrs", fake_similar)
-    resp = ask.answer(AskRequest(query="find this CDR3 CASSLGTEAFF from TRBV20-1 TRBJ2-7"))
+    resp = ask.answer(AskRequest(query="find this CDR3 CASSLGTEAFF"))
     assert resp.intent == "similar"
     assert resp.neighbours_result is not None
     assert captured["cdr3"] == "CASSLGTEAFF"
-    assert captured["v"] == "TRBV20-1" and captured["j"] == "TRBJ2-7"
+
+
+def test_cdr3_with_genes_routes_to_dossier(monkeypatch):
+    # A CDR3 supplied with V (and/or J) genes is characterized in a dossier
+    # (annotation / reconstruction), which is species-agnostic (covers mouse).
+    monkeypatch.setattr(ask, "llm_available", lambda: False)
+    resp = ask.answer(AskRequest(
+        query="CASSLGTEAFF TRBV20-1 TRBJ2-7", species="human"))
+    assert resp.intent == "dossier"
+    assert resp.dossier is not None
+    assert resp.dossier.genes["v"] and resp.dossier.genes["v"].call == "TRBV20-1"
 
 
 def test_heuristic_scans_all_tokens_for_gene_question(monkeypatch):

@@ -243,6 +243,22 @@ def build_dossier(
                     message="query could not be routed")
         )
 
+    # Explicitly-supplied V/J genes: annotate them even without a full V+J+CDR3
+    # reconstruction (e.g. a CDR3 plus only a V gene). The V carries chain identity,
+    # CDR1 and CDR2, and germline. This is species-agnostic (mouse germline included).
+    if request.v_gene and genes["v"] is None:
+        ch = _gene_path(request.v_gene, request, genes, regions,
+                        provenance, warnings, want_seq, want_germ)
+        if ch != "unknown":
+            chain = ch
+    if request.j_gene and chain == "unknown":
+        # Use the J gene only to establish chain identity (honest: derived from the
+        # gene name). We do not populate genes["j"] because no germline lookup was
+        # performed for it, and every populated block must carry provenance.
+        from .cdr_enricher import _gene_to_chain
+        _CH = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}
+        chain = _CH.get(_gene_to_chain(request.j_gene), "unknown")
+
     # Known epitopes via the real vdjdb/iedb search path (fully mockable).
     v_for_ep = genes["v"].call if genes["v"] else None
     cdr3_for_ep = junction.cdr3_aa if junction else None

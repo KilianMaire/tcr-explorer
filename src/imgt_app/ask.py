@@ -54,10 +54,17 @@ def _heuristic_plan(query: str, species: str) -> dict:
     cdr3 = next((t for t in toks if _looks_like_cdr3(t)), "")
     vg, jg = _find_gene(toks, "V"), _find_gene(toks, "J")
     forced_similar = any(k in q for k in ("similar", "nearest", "neighbour", "neighbor", "close to"))
-    # A CDR3 is present: look it up against the known-TCR reference (nearest known
-    # TCRs and their epitopes). This is the core purpose of the tool for a CDR3, so
-    # it takes priority over germline annotation (which needs V and J anyway).
-    if cdr3 or forced_similar:
+    if forced_similar:
+        return {"intent": "similar", "cdr3_aa": cdr3, "v_gene": vg, "j_gene": jg}
+    # A V and/or J gene is present: characterize the TCR in a dossier (chain, the V's
+    # CDR1/CDR2 and germline, and a full reconstruction when V+J+CDR3 are all given).
+    # This is species-agnostic and covers mouse, matching IMGT-style annotation.
+    if vg or jg:
+        return {"intent": "dossier", "query": cdr3 or vg or jg,
+                "v_gene": vg, "j_gene": jg, "cdr3_aa": cdr3}
+    # A bare CDR3 with no gene: look it up against the known-TCR reference (nearest
+    # known TCRs and their epitopes). This is the core lookup case for a CDR3 alone.
+    if cdr3:
         return {"intent": "similar", "cdr3_aa": cdr3, "v_gene": vg, "j_gene": jg}
     # Otherwise a gene name or a raw sequence: annotate it in a dossier. Only accept
     # an unambiguous classification (no router warnings) so English filler words
