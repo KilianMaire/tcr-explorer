@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from .dossier_models import DossierRequest, AskRequest, SimilarResponse
+from .dossier_models import AlignRequest as _AlignRequest
 from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
 from .ask import answer as answer_fn
 
@@ -55,6 +56,19 @@ def ask_tcr(query: str, species: str = "human") -> dict:
     tools when you already know the intent; use this for free text. No prose is
     generated; the response carries intent, plan_source, and llm_used."""
     return answer_fn(AskRequest(query=query, species=species)).model_dump()
+
+@mcp.tool(annotations=_READ_ONLY)
+def align_tcr_genes(species: str = "human", chain: Optional[str] = None,
+                    segment: Optional[str] = None, genes: Optional[list[str]] = None,
+                    sequences: Optional[list[dict]] = None, seq_type: str = "nt",
+                    translate: bool = False) -> dict:
+    """Multiple-sequence-align a TCR gene set: a germline set (species+chain+segment,
+    e.g. mouse TRB J), an explicit gene list, or provided sequences. Returns the
+    alignment, consensus, and mean pairwise identity. V/J/C are available from the
+    germline source; D is not (supply D sequences directly)."""
+    from .msa import align
+    return align(_AlignRequest(species=species, chain=chain, segment=segment, genes=genes,
+                               sequences=sequences, seq_type=seq_type, translate=translate)).model_dump()
 
 def main() -> None:
     mcp.run()

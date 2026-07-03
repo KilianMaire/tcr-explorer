@@ -17,7 +17,16 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
-from .dossier_models import AskRequest, AskResponse, DossierRequest, SimilarRequest, SimilarResponse, TCRDossier
+from .dossier_models import (
+    AlignRequest,
+    AskRequest,
+    AskResponse,
+    DossierRequest,
+    MSAResult,
+    SimilarRequest,
+    SimilarResponse,
+    TCRDossier,
+)
 from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
 from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
@@ -981,6 +990,16 @@ def tcr_similar(req: SimilarRequest):
     return SimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)
 
 
+@app.post("/v1/tcr/align", response_model=MSAResult)
+def tcr_align(req: AlignRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier above: align may
+    # resolve germline sets from disk or shell out to clustalo, so it runs in
+    # FastAPI's threadpool rather than blocking the event loop.
+    from .msa import align  # local import: avoids import cycles
+
+    return align(req)
+
+
 @app.post("/v1/tcr/ask", response_model=AskResponse)
 def tcr_ask(req: AskRequest):
     # Synchronous by design, same rationale as /v1/tcr/dossier and /v1/tcr/similar
@@ -1007,6 +1026,15 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <select id="sp"><option>human</option><option>mouse</option></select>
 <button type="submit">Ask</button></form>
 <div id="out"></div>
+<h1>Align a gene set</h1>
+<p class="muted">Align a germline set (species + chain + segment) or a gene list. V/J/C come from the germline source; D is not available there.</p>
+<form id="af">
+<select id="a_sp"><option>human</option><option>mouse</option></select>
+<input id="a_chain" placeholder="chain e.g. TRB" value="TRB">
+<select id="a_seg"><option>V</option><option>D</option><option>J</option><option>C</option></select>
+<label><input type="checkbox" id="a_translate"> translate</label>
+<button type="submit">Align</button></form>
+<div id="a_out"></div>
 <script>
 const f=document.getElementById('f'),out=document.getElementById('out');
 f.addEventListener('submit',async e=>{e.preventDefault();out.innerHTML='<p class="muted">...</p>';
@@ -1029,6 +1057,19 @@ function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span c
 function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">no similar TCRs</p>';
  let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
  for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
+const af=document.getElementById('af'),a_out=document.getElementById('a_out');
+af.addEventListener('submit',async e=>{e.preventDefault();a_out.innerHTML='<p class="muted">...</p>';
+ const r=await fetch('/v1/tcr/align',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({species:document.getElementById('a_sp').value,
+   chain:document.getElementById('a_chain').value,
+   segment:document.getElementById('a_seg').value,
+   translate:document.getElementById('a_translate').checked})});
+ const b=await r.json();a_out.innerHTML=renderAlign(b);});
+function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity)</span></h3><pre>';
+ for(const rec of (b.records||[]))h+=esc(rec.name.padEnd(20))+' '+esc(rec.aligned)+'\n';
+ h+='\n'+esc('consensus'.padEnd(20))+' '+esc(b.consensus)+'</pre>';
+ if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
+ return h+'</div>';}
 </script></body></html>"""
 
 

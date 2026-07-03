@@ -14,9 +14,9 @@ WarningCode = Literal[
     "ambiguous_alphabet", "unresolved_input_type", "d_segment_unresolved",
     "aa_annotation_limited", "back_translated_nt", "partial_annotation", "timeout",
     "tcrdist_unavailable", "similarity_index_unavailable", "no_reference_candidates",
-    "species_unsupported",
+    "species_unsupported", "segment_unavailable", "too_few_sequences", "alignment_failed",
 ]
-ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours"]
+ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours", "alignment"]
 ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb", "unitcr", "tcrdist", "blosum_cdr3"]
 ProvConfidence = Literal["high", "medium", "low"]
 ProvKind = Literal["observed", "germline_lookup", "back_translated", "neighbor_inferred"]
@@ -128,3 +128,31 @@ class TCRDossier(BaseModel):
     provenance: list[Provenance] = Field(default_factory=list)
     warnings: list[DossierWarning] = Field(default_factory=list)
     neighbours: Optional[list[Neighbour]] = None
+
+class AlignedRecord(BaseModel):
+    name: str
+    aligned: str
+
+class ProvidedSeq(BaseModel):
+    name: str
+    seq: str
+
+class AlignRequest(BaseModel):
+    species: SpeciesType = "human"
+    chain: Optional[str] = Field(None, description="IMGT chain locus for a germline set: TRA/TRB/TRG/TRD.", examples=["TRB"])
+    segment: Optional[str] = Field(None, description="Segment for a germline set: V/D/J/C. D is not in the germline source.", examples=["J"])
+    genes: Optional[list[str]] = Field(None, description="Explicit gene/allele names to resolve and align.", examples=[["TRBJ1-1", "TRBJ2-7"]])
+    sequences: Optional[list[ProvidedSeq]] = Field(None, description="Provided named sequences to align verbatim.")
+    seq_type: str = Field("nt", description="'nt' or 'aa'.", examples=["nt", "aa"])
+    translate: bool = Field(False, description="Translate germline nt to aa before aligning.")
+
+class MSAResult(BaseModel):
+    engine: str
+    seq_type: str
+    n_sequences: int
+    alignment_length: int
+    records: list[AlignedRecord] = Field(default_factory=list)
+    consensus: str = ""
+    mean_pct_identity: float = 0.0
+    provenance: list[Provenance] = Field(default_factory=list)
+    warnings: list[DossierWarning] = Field(default_factory=list)
