@@ -26,11 +26,9 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
 
 from .cdr_enricher import (
-    _CODON,
     _SPECIES_STITCHR,
     _gene_to_chain,
     _stitchr_data_dir,
@@ -155,7 +153,13 @@ def _j_frame_and_fw(j_nt: str) -> tuple[int, int]:
     j_nt) of the F/W codon's first base, or (0, -1) if no such motif is
     found in any frame.
     """
-    fw_gxg_re = re.compile(r"[FW].{0,2}?G.G")
+    # Phe/Trp118 sits immediately before the conserved G-x-G of FR4 (the
+    # canonical F-G-x-G / W-G-x-G motif). Match that tight motif first so the
+    # F/W adjacent to G-x-G is chosen, not an earlier F/W (e.g. the double F in
+    # TRBJ1-1 "EAFFGQG", where Phe118 is the second F). Fall back to a looser
+    # motif only when no tight one exists in any frame.
+    fw_gxg_tight = re.compile(r"[FW]G.G")
+    fw_gxg_loose = re.compile(r"[FW].{0,2}?G.G")
 
     candidates: list[tuple[int, int, int]] = []  # (frame, fw_res_index, n_stops)
     fewest_stops_frame = 0
@@ -168,7 +172,7 @@ def _j_frame_and_fw(j_nt: str) -> tuple[int, int]:
             fewest_stops = n_stops
             fewest_stops_frame = frame
 
-        match = fw_gxg_re.search(translated)
+        match = fw_gxg_tight.search(translated) or fw_gxg_loose.search(translated)
         if match is None:
             continue
         fw_res_index = match.start()

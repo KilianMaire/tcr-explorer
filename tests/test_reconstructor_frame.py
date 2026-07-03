@@ -25,3 +25,12 @@ def test_mouse_reconstruction_in_frame():
     # mouse germline may or may not be present; if reconstructed, it must be clean
     if aa is not None:
         assert "CASGGTGEQYF" in aa and "*" not in aa
+
+
+def test_no_spurious_residue_at_cdr3_j_junction():
+    # TRBJ1-1 FR4 is F-G-x-G where that F is Phe118, the CDR3's own last F.
+    # The junction must not duplicate it into a triple F (CASSLGTEAF-F-F-GQG).
+    r = reconstruct_tcr("TRBV4-1", "TRBJ1-1", "CASSLGTEAFF", "human")
+    aa = r["full_aa"]
+    assert "CASSLGTEAFFGQGTRLTVV" in aa, aa
+    assert "AFFF" not in aa, aa
