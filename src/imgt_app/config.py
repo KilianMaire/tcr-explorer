@@ -19,6 +19,11 @@ class Settings:
     tempo_server_url: str = os.getenv("TEMPO_SERVER_URL", "http://127.0.0.1:8106")
     tempo_timeout: float = float(os.getenv("TEMPO_TIMEOUT", "30.0"))
     tempo_enable: bool = os.getenv("TEMPO_ENABLE", "true").lower() != "false"
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "")
+    llm_model: str = os.getenv("LLM_MODEL", "local-model")
+    llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "8.0"))
+    llm_enable: bool = os.getenv("LLM_ENABLE", "true").lower() != "false"
 
 
 settings = Settings()

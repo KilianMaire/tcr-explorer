@@ -22,14 +22,14 @@ ProvConfidence = Literal["high", "medium", "low"]
 ProvKind = Literal["observed", "germline_lookup", "back_translated", "neighbor_inferred"]
 
 class DossierRequest(BaseModel):
-    query: str
-    input_type: InputType = "auto"
-    species: SpeciesType = "human"
-    mode: ModeType = "fast"
-    include: list[IncludeFlag] = Field(default_factory=list)
-    v_gene: Optional[str] = None
-    j_gene: Optional[str] = None
-    cdr3_aa: Optional[str] = None
+    query: str = Field(..., description="A TCR query: a raw nucleotide or amino acid sequence, an IMGT gene name or allele, or a namespaced database id (vdjdb:/iedb:).", examples=["TRBV20-1", "CASSLGTEAFF", "vdjdb:12345"])
+    input_type: InputType = Field("auto", description="Force the interpretation of query; 'auto' runs the router.", examples=["auto", "gene_name", "raw_aa"])
+    species: SpeciesType = Field("human", description="Organism of the query.", examples=["human", "mouse"])
+    mode: ModeType = Field("fast", description="'fast' uses gene/id/CDR3 paths only; 'full' enables raw-sequence annotation and neighbours.", examples=["fast", "full"])
+    include: list[IncludeFlag] = Field(default_factory=list, description="Optional extras: 'sequences' (long nt), 'germline', 'neighbours'.", examples=[["sequences"], ["neighbours"]])
+    v_gene: Optional[str] = Field(None, description="Optional V gene for reconstruction/neighbours.", examples=["TRBV20-1"])
+    j_gene: Optional[str] = Field(None, description="Optional J gene for reconstruction/neighbours.", examples=["TRBJ2-7"])
+    cdr3_aa: Optional[str] = Field(None, description="Optional CDR3 amino acids for reconstruction/neighbours.", examples=["CASSLGTEAFF"])
 
 class GeneCall(BaseModel):
     call: Optional[str] = None
@@ -79,18 +79,38 @@ class Neighbour(BaseModel):
     cluster_id: Optional[int] = None
 
 class SimilarRequest(BaseModel):
-    cdr3: str
-    v_gene: str
-    j_gene: str
-    species: SpeciesType = "human"
-    top_k: int = Field(default=10, ge=1, le=200)
-    min_similarity: float = Field(default=0.0, ge=0.0, le=1.0)
+    cdr3: str = Field(..., description="CDR3 amino acid sequence for similarity search.", examples=["CASSLGTEAFF", "CASSPYLGTNQYF"])
+    v_gene: str = Field(..., description="V gene name, e.g. TRBV20-1", examples=["TRBV20-1", "TRBV5-1"])
+    j_gene: str = Field(..., description="J gene name, e.g. TRBJ2-7", examples=["TRBJ2-7", "TRBJ1-2"])
+    species: SpeciesType = Field("human", description="Organism of the query.", examples=["human", "mouse"])
+    top_k: int = Field(default=10, ge=1, le=200, description="Maximum number of similar neighbours to return (1-200).", examples=[10, 50, 100])
+    min_similarity: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum relative similarity (0.0-1.0) for a match; only 1.0 is truly identical.", examples=[0.0, 0.5, 0.8])
 
 class SimilarResponse(BaseModel):
     neighbours: list[Neighbour] = Field(default_factory=list)
     engine: str
     total_candidates: int = 0
     warnings: list["DossierWarning"] = Field(default_factory=list)
+
+class AskRequest(BaseModel):
+    query: str = Field(..., description="A free-text question about a TCR.", examples=["annotate CASSLGTEAFF", "what does TRBV20-1 recognise?"])
+    species: SpeciesType = "human"
+
+class AskResponse(BaseModel):
+    intent: str
+    plan_source: str          # "llm" | "heuristic"
+    llm_used: bool
+    dossier: Optional["TCRDossier"] = None
+    neighbours_result: Optional["SimilarResponse"] = None
+    search_result: Optional[Any] = None   # SearchResponse
+    warnings: list["DossierWarning"] = Field(
+        default_factory=list,
+        description=(
+            "Warnings from the dossier path only. Similar/search-path warnings "
+            "are nested in neighbours_result.warnings / search_result respectively, "
+            "not surfaced here."
+        ),
+    )
 
 class TCRDossier(BaseModel):
     schema_version: str = "1.0"

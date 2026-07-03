@@ -17,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
-from .dossier_models import DossierRequest, SimilarRequest, SimilarResponse, TCRDossier
+from .dossier_models import AskRequest, AskResponse, DossierRequest, SimilarRequest, SimilarResponse, TCRDossier
 from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
 from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
@@ -979,3 +979,13 @@ def tcr_similar(req: SimilarRequest):
         min_similarity=req.min_similarity,
     )
     return SimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)
+
+
+@app.post("/v1/tcr/ask", response_model=AskResponse)
+def tcr_ask(req: AskRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier and /v1/tcr/similar
+    # above: the routed intent may hit build_dossier/find_similar_tcrs, both of
+    # which are themselves synchronous for the same reasons.
+    from .ask import answer  # local import: avoids circular import
+
+    return answer(req)
