@@ -1,3 +1,5 @@
+import pandas as pd
+
 from imgt_app import similarity
 from imgt_app.similarity import find_similar_tcrs, cdr3_distance
 
@@ -23,3 +25,28 @@ def test_missing_index_is_graceful():
         "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", index_path="/no/such/index.parquet")
     assert neigh == []
     assert any(w.code == "similarity_index_unavailable" for w in warns)
+
+
+def test_nan_optional_fields_become_none(tmp_path):
+    # Real index rows carry NaN (numpy float) in unpopulated optional string columns;
+    # pydantic rejects NaN for Optional[str]. Build a NaN-bearing index and query it.
+    idx = tmp_path / "nan_index.parquet"
+    pd.DataFrame(
+        {
+            "cdr3_b_aa": ["CASSLGTEAFF"],
+            "v_b_gene": ["TRBV20-1"],
+            "j_b_gene": ["TRBJ1-1"],
+            "epitope_aa": [None],
+            "mhc_class": [float("nan")],
+            "mhc_a": [float("nan")],
+            "antigen": [float("nan")],
+            "antigen_organism": [None],
+            "cluster_id": [float("nan")],
+        }
+    ).to_parquet(idx)
+    neigh, engine, ncand, warns = find_similar_tcrs(
+        "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", index_path=str(idx))
+    assert neigh[0].antigen is None
+    assert neigh[0].mhc_a is None
+    assert neigh[0].antigen_organism is None
+    assert neigh[0].cluster_id is None

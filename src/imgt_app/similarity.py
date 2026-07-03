@@ -10,7 +10,7 @@ import pandas as pd
 from .dossier_models import DossierWarning, Neighbour
 
 _DEFAULT_INDEX = str(Path(__file__).resolve().parent.parent.parent / "data" / "unitcr_beta_index.parquet")
-_BLOSUM_PATH = Path(__file__).resolve().parent / "data" / "blosum50.json"
+_BLOSUM_PATH = Path(__file__).resolve().parent / "data" / "blosum62.json"
 _GAP = 8
 _NTRIM, _CTRIM = 3, 2  # trim conserved CDR3 ends (tcrdist convention)
 
@@ -61,6 +61,12 @@ def _load_index(path: str) -> Optional[pd.DataFrame]:
 
 def _v_family(v: str) -> str:
     return (v or "").split("*")[0].split("-")[0]
+
+
+def _clean(v):
+    """Coerce NaN (numpy float) in optional string columns to None. Real index
+    rows carry NaN in unpopulated optional fields; pydantic rejects NaN for Optional[str]."""
+    return None if v is None or (isinstance(v, float) and pd.isna(v)) else v
 
 
 def find_similar_tcrs(
@@ -130,11 +136,11 @@ def find_similar_tcrs(
             j_b_gene=r.j_b_gene,
             similarity=round(float(r.sim_score), 4),
             distance=round(float(r.dist_score), 4),
-            epitope_aa=getattr(r, "epitope_aa", None),
-            mhc_class=getattr(r, "mhc_class", None),
-            mhc_a=getattr(r, "mhc_a", None),
-            antigen=getattr(r, "antigen", None),
-            antigen_organism=getattr(r, "antigen_organism", None),
+            epitope_aa=_clean(getattr(r, "epitope_aa", None)),
+            mhc_class=_clean(getattr(r, "mhc_class", None)),
+            mhc_a=_clean(getattr(r, "mhc_a", None)),
+            antigen=_clean(getattr(r, "antigen", None)),
+            antigen_organism=_clean(getattr(r, "antigen_organism", None)),
             cluster_id=(int(r.cluster_id) if pd.notna(getattr(r, "cluster_id", None)) else None),
         )
         for r in scored.itertuples(index=False)
