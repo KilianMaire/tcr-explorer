@@ -64,8 +64,8 @@ class DossierWarning(BaseModel):
 
 class Neighbour(BaseModel):
     cdr3_b_aa: str
-    v_b_gene: str
-    j_b_gene: str
+    v_b_gene: Optional[str] = None
+    j_b_gene: Optional[str] = None
     similarity: float
     """Within-query relative similarity: normalised to the per-query candidate
     maximum distance, so only similarity==1.0 (identical) is absolute. Callers
@@ -165,48 +165,48 @@ class MSAResult(BaseModel):
 
 
 class Composition(BaseModel):
-    v_germline_aa: Optional[str] = None
-    cdr3_aa: str
-    j_germline_aa: Optional[str] = None
-    v_region_nt: Optional[str] = None
-    cdr3_nt: Optional[str] = None
-    j_region_nt: Optional[str] = None
-    note: Optional[str] = None
+    v_germline_aa: Optional[str] = Field(None, description="V gene germline amino acid sequence used to reconstruct this record.")
+    cdr3_aa: str = Field(..., description="CDR3 amino acid sequence carried through the reconstruction.")
+    j_germline_aa: Optional[str] = Field(None, description="J gene germline amino acid sequence used to reconstruct this record.")
+    v_region_nt: Optional[str] = Field(None, description="V region germline nucleotide sequence used to reconstruct this record.")
+    cdr3_nt: Optional[str] = Field(None, description="CDR3 nucleotide sequence, back translated when not deposited.")
+    j_region_nt: Optional[str] = Field(None, description="J region germline nucleotide sequence used to reconstruct this record.")
+    note: Optional[str] = Field(None, description="Free text explanation of how this sequence was reconstructed.")
 
 
 class TCRRecord(BaseModel):
     source: str
     source_record_id: str
-    external_url: str
-    pairing_key: str
+    external_url: str = Field(..., description="Link to view this record on the source database's own website.")
+    pairing_key: str = Field(..., description="Key shared by the alpha and beta chain of the same receptor, for pairing.")
     chain: str
     species: str
     cdr3_aa: str
     cdr3_nt: Optional[str] = None
-    cdr3_nt_kind: Optional[Literal["deposited", "reconstructed"]] = None
+    cdr3_nt_kind: Optional[Literal["deposited", "reconstructed"]] = Field(None, description="Whether cdr3_nt was deposited by the source database or back translated from the amino acids.")
     full_aa: Optional[str] = None
-    full_aa_kind: Optional[Literal["deposited", "reconstructed"]] = None
+    full_aa_kind: Optional[Literal["deposited", "reconstructed"]] = Field(None, description="Whether full_aa was deposited by the source database or reconstructed from germline plus CDR3.")
     full_nt: Optional[str] = None
-    full_nt_kind: Optional[Literal["deposited", "reconstructed"]] = None
-    nt_is_synthetic: bool = False
+    full_nt_kind: Optional[Literal["deposited", "reconstructed"]] = Field(None, description="Whether full_nt was deposited by the source database or reconstructed from germline plus CDR3.")
+    nt_is_synthetic: bool = Field(False, description="True when any nucleotide sequence on this record was back translated rather than deposited; a synthetic nucleotide sequence is not the receptor's real DNA.")
     v_gene: Optional[str] = None
     d_gene: Optional[str] = None
     j_gene: Optional[str] = None
-    cdr1_aa: Optional[str] = None
-    cdr2_aa: Optional[str] = None
-    epitope_aa: Optional[str] = None
+    cdr1_aa: Optional[str] = Field(None, description="CDR1 amino acid sequence, germline encoded and largely V gene determined.")
+    cdr2_aa: Optional[str] = Field(None, description="CDR2 amino acid sequence, germline encoded and largely V gene determined.")
+    epitope_aa: Optional[str] = Field(None, description="Amino acid sequence of the epitope this receptor was observed to recognize.")
     antigen: Optional[str] = None
     antigen_organism: Optional[str] = None
     mhc_class: Optional[str] = None
     mhc_a: Optional[str] = None
     mhc_b: Optional[str] = None
-    pdb_id: Optional[str] = None
+    pdb_id: Optional[str] = Field(None, description="RCSB PDB structure id for a solved complex containing this receptor, if any.")
     reference_pmid: Optional[str] = None
-    score: Optional[float] = None
+    score: Optional[float] = Field(None, description="Source database's own confidence or quality score for this record; scale varies by source.")
     composition: Optional[Composition] = None
-    match_kind: Literal["exact", "neighbour"] = "exact"
-    similarity: Optional[float] = None
-    concordance: int = 1
+    match_kind: Literal["exact", "neighbour"] = Field("exact", description="'exact' means the CDR3 matched the query verbatim; 'neighbour' means it was found by similarity search instead.")
+    similarity: Optional[float] = Field(None, description="Within-query relative similarity to the queried CDR3, set only for neighbour matches; only 1.0 is truly identical.")
+    concordance: int = Field(1, description="Number of distinct source databases that independently report this exact CDR3.")
 
 
 class PairedRecord(BaseModel):

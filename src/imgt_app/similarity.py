@@ -182,8 +182,8 @@ def find_similar_tcrs(
     neigh = [
         Neighbour(
             cdr3_b_aa=getattr(r, cdr3_col),
-            v_b_gene=getattr(r, v_col),
-            j_b_gene=getattr(r, j_col),
+            v_b_gene=_clean(getattr(r, v_col)),
+            j_b_gene=_clean(getattr(r, j_col)),
             similarity=round(float(r.sim_score), 4),
             distance=round(float(r.dist_score), 4),
             epitope_aa=_clean(getattr(r, "epitope_aa", None)),

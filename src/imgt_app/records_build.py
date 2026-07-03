@@ -85,10 +85,10 @@ _TAXON_SPECIES_MAP = {
 }
 
 
-def _species_from_organism_iri(raw: object) -> Optional[str]:
+def _species_from_organism_iri(raw: object) -> str:
     s = _na(raw)
     if s is None:
-        return None
+        return ""
     tail = s.rstrip("/").rsplit("/", 1)[-1]
     taxon_id = tail.rsplit("_", 1)[-1] if "_" in tail else tail
     return _TAXON_SPECIES_MAP.get(taxon_id, tail.lower())

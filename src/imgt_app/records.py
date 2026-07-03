@@ -47,7 +47,7 @@ def build_record(
         external_url=row["external_url"],
         pairing_key=row["pairing_key"],
         chain=row["chain"],
-        species=row["species"],
+        species=row.get("species") or "",
         cdr3_aa=row["cdr3_aa"],
         v_gene=row.get("v_gene"),
         d_gene=row.get("d_gene"),
