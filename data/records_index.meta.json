@@ -1,0 +1,41 @@
+{
+  "built_columns": [
+    "source",
+    "source_record_id",
+    "pairing_key",
+    "species",
+    "chain",
+    "cdr3_aa",
+    "cdr3_nt",
+    "full_aa",
+    "full_nt",
+    "v_gene",
+    "d_gene",
+    "j_gene",
+    "cdr1_aa",
+    "cdr2_aa",
+    "epitope_aa",
+    "antigen",
+    "antigen_organism",
+    "mhc_class",
+    "mhc_a",
+    "mhc_b",
+    "pdb_id",
+    "reference_pmid",
+    "external_url",
+    "score"
+  ],
+  "rows_total": 449982,
+  "per_source": {
+    "iedb": 207530,
+    "vdjdb": 197533,
+    "mcpas": 44257,
+    "tcr3d": 662
+  },
+  "snapshots": {
+    "vdjdb": "vdjdb-2026-06-03",
+    "iedb": "receptor_full_v3",
+    "mcpas": "mcpas.csv",
+    "tcr3d": "tcr3d_complexes.tsv"
+  }
+}
