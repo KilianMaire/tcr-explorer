@@ -207,6 +207,8 @@ class TCRRecord(BaseModel):
     match_kind: Literal["exact", "neighbour"] = Field("exact", description="'exact' means the CDR3 matched the query verbatim; 'neighbour' means it was found by similarity search instead.")
     similarity: Optional[float] = Field(None, description="Within-query relative similarity to the queried CDR3, set only for neighbour matches; only 1.0 is truly identical.")
     concordance: int = Field(1, description="Number of distinct source databases that independently report this exact CDR3.")
+    mhc_organism: Optional[str] = Field(None, description="Organism inferred from the mhc_a allele name ('human' for HLA*, 'mouse' for H2*/H-2*), independent of the record's own species field.")
+    mhc_is_cross_species: bool = Field(False, description="True when mhc_organism is known and differs from this record's species, e.g. an HLA-transgenic mouse.")
 
 
 class PairedRecord(BaseModel):
@@ -225,6 +227,7 @@ class RecordsRequest(BaseModel):
     species: Optional[SpeciesType] = Field(None, description="Filter by organism; omit for all species.", examples=["human", "mouse"])
     top_k: int = Field(50, ge=1, le=500, description="Max exact records to return.", examples=[50])
     include_neighbours: bool = Field(True, description="Also return BLOSUM near neighbours (kept separate from exact hits).")
+    include_cross_species_mhc: bool = Field(False, description="Include records whose MHC allele belongs to a different species than the query (e.g. human HLA on a mouse record); off by default.")
 
 
 class RecordsResponse(BaseModel):

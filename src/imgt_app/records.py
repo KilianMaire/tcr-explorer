@@ -35,6 +35,22 @@ from .reconstructor import reconstruct_tcr
 from .similarity import cdr3_distance, distance_to_similarity
 
 
+def mhc_organism(mhc_a: Optional[str]) -> Optional[str]:
+    """Organism implied by an MHC allele name: 'human' for HLA*, 'mouse' for
+    H2*/H-2*, else None. Independent of the record's own species field, so it
+    can flag HLA-transgenic mice and similar cross-species constructs."""
+    if not mhc_a or (isinstance(mhc_a, float) and pd.isna(mhc_a)):
+        return None
+    s = str(mhc_a).strip().upper()
+    if not s:
+        return None
+    if s.startswith("HLA"):
+        return "human"
+    if s.startswith("H2") or s.startswith("H-2"):
+        return "mouse"
+    return None
+
+
 def build_record(
     row: dict,
     match_kind: str = "exact",
@@ -67,6 +83,8 @@ def build_record(
         similarity=similarity,
         concordance=concordance,
     )
+    rec.mhc_organism = mhc_organism(row.get("mhc_a"))
+    rec.mhc_is_cross_species = bool(rec.mhc_organism and rec.mhc_organism != (rec.species or "").strip().lower())
 
     # Deposited sequences first, kept verbatim.
     if row.get("cdr3_nt"):
@@ -223,6 +241,17 @@ def _species_filter(frame: pd.DataFrame, species: Optional[str]) -> pd.DataFrame
     return frame[frame["species"].fillna("").astype(str).str.strip().str.lower() == norm]
 
 
+def _mhc_species_filter(frame: pd.DataFrame, species: str) -> pd.DataFrame:
+    """Drop rows whose MHC allele implies a different organism than the
+    query species (the HLA-transgenic mouse case). Rows with no inferrable
+    MHC organism are kept, since absence of a known allele is not evidence
+    of a cross-species record."""
+    norm = species.strip().lower()
+    organisms = frame["mhc_a"].map(mhc_organism)
+    keep = organisms.isna() | (organisms == norm)
+    return frame[keep]
+
+
 def _cdr3_mask(frame: pd.DataFrame, cdr3: str) -> pd.Series:
     return frame["cdr3_aa"].fillna("").astype(str).str.upper() == cdr3.strip().upper()
 
@@ -319,6 +348,8 @@ def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) 
         )
 
     work = _species_filter(df, request.species)
+    if request.species and not request.include_cross_species_mhc:
+        work = _mhc_species_filter(work, request.species)
 
     if not (cdr3_aa or v_gene or j_gene):
         # Nothing to search on (e.g. a bare pair query with no primary field).
