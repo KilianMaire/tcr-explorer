@@ -98,13 +98,19 @@ class ReconstructRequest(BaseModel):
 class ReconstructResponse(BaseModel):
     v_gene: str
     j_gene: str
+    v_allele_used: Optional[str] = None   # germline V allele used (defaults to *01)
+    j_allele_used: Optional[str] = None   # germline J allele used (defaults to *01)
     cdr3_aa: str
     species: Species
-    full_nt: Optional[str]       # full TCR coding sequence (V + CDR3 + J)
-    full_aa: Optional[str]       # translated protein sequence
+    full_nt: Optional[str]       # variable-domain coding sequence (V + CDR3 + J)
+    full_aa: Optional[str]       # translated variable-domain protein
+    full_chain_aa: Optional[str] = None   # variable domain + membrane-bound constant
+    constant_source: Optional[str] = None  # provenance of the appended constant
     v_region_nt: Optional[str]   # raw V-REGION from stitchr
     cdr3_nt: str                 # back-translated CDR3
     j_region_nt: Optional[str]   # raw J-REGION from stitchr
+    v_prefix_nt: Optional[str] = None   # in-frame V up to Cys104
+    j_suffix_nt: Optional[str] = None   # in-frame J FR4 after Phe/Trp118
     v_found: bool
     j_found: bool
     note: str
