@@ -32,5 +32,22 @@ def test_constant_catalog_distinguishes_trbc1_trbc2():
     assert any(n.startswith("TRBC2") for n in names)
 
 
+def test_mouse_trbc1_aa_is_translated_in_its_true_reading_frame():
+    # The stitchr mouse TRBC1 C-REGION nucleotide sequence is not in frame 0;
+    # translating naively in frame 0 yields a stop-riddled garbage protein.
+    # The true open reading frame (frame 2) yields the real constant protein.
+    cs = germline_alleles("mouse", "TRB", "C")
+    c = next(x for x in cs if x.name.startswith("TRBC1"))
+    assert c.aa.count("*") == 0, c.aa
+    assert c.aa.startswith("DLRNVTPP"), c.aa
+
+
+def test_human_trbc1_aa_is_translated_in_its_true_reading_frame():
+    cs = germline_alleles("human", "TRB", "C")
+    c = next(x for x in cs if x.name.startswith("TRBC1"))
+    assert c.aa.count("*") == 0, c.aa
+    assert "DLNKVFPP" in c.aa, c.aa
+
+
 def test_absent_segment_returns_empty():
     assert germline_alleles("human", "TRA", "D") == []  # alpha has no D

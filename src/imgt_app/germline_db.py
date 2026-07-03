@@ -40,10 +40,32 @@ def _translate_frame0_trimmed(nt: str) -> str:
     return aa
 
 
-def _build_v_or_c_alleles(chain: str, species: str, markers: tuple[str, ...]) -> tuple[Allele, ...]:
+def _translate_true_frame_trimmed(nt: str) -> str:
+    """Translate *nt* in whichever of frames 0, 1, 2 has the fewest internal
+    stop codons (the true open reading frame), ties broken by the lowest
+    frame index. Unlike V-REGION, the stitchr C-REGION nucleotide sequences
+    are not guaranteed to start in frame 0, so the frame must be discovered
+    rather than assumed. Strips a single trailing stop codon if present,
+    consistent with the V-segment translation."""
+    candidates = [_translate(nt[f:]) for f in (0, 1, 2)]
+    aa = min(candidates, key=lambda a: a.count("*"))
+    if aa.endswith("*"):
+        aa = aa[:-1]
+    return aa
+
+
+def _build_v_alleles(chain: str, species: str, markers: tuple[str, ...]) -> tuple[Allele, ...]:
     allele_map = _load_allele_map(chain, species, markers)
     return tuple(
         Allele(name=name, nt=nt, aa=_translate_frame0_trimmed(nt))
+        for name, nt in sorted(allele_map.items())
+    )
+
+
+def _build_c_alleles(chain: str, species: str, markers: tuple[str, ...]) -> tuple[Allele, ...]:
+    allele_map = _load_allele_map(chain, species, markers)
+    return tuple(
+        Allele(name=name, nt=nt, aa=_translate_true_frame_trimmed(nt))
         for name, nt in sorted(allele_map.items())
     )
 
@@ -73,8 +95,10 @@ def _build_d_alleles(chain: str, species: str) -> tuple[Allele, ...]:
 def _cached_germline_alleles(species: str, chain: str, segment: str) -> tuple[Allele, ...]:
     if segment == "D":
         return _build_d_alleles(chain, species)
-    if segment in ("V", "C"):
-        return _build_v_or_c_alleles(chain, species, _MARKERS[segment])
+    if segment == "V":
+        return _build_v_alleles(chain, species, _MARKERS[segment])
+    if segment == "C":
+        return _build_c_alleles(chain, species, _MARKERS[segment])
     if segment == "J":
         return _build_j_alleles(chain, species)
     return ()

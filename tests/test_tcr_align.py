@@ -142,12 +142,17 @@ def test_v_only_input_emits_no_confident_constant_call():
 
 def test_full_chain_still_yields_a_trbc_constant_call():
     # The real full-chain path is unaffected in that it still identifies the
-    # constant region as TRBC (the length gate keeps a large remainder).
+    # constant region as TRBC (the length gate keeps a large remainder). With
+    # the mouse TRBC germline translated in its true reading frame, the call
+    # is now a clean high-identity match, not a low-identity one propped up by
+    # a tiny stop-free island.
     from imgt_app.reconstructor import reconstruct_tcr
     from imgt_app.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")
     a = assign(built["full_chain_aa"], species="mouse")
     assert a.constant_call and any(n.startswith("TRBC") for n in a.constant_call["alleles"])
+    assert a.constant_call["identity"] >= 0.90, a.constant_call["identity"]
+    assert "low constant identity" not in a.warnings
 
 
 def test_clean_full_chain_constant_is_not_spuriously_warned():
