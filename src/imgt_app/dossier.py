@@ -18,12 +18,12 @@ from typing import Callable, Optional
 
 from .dossier_models import (
     DossierRequest,
+    DossierWarning,
     GeneCall,
     Junction,
     Provenance,
     RegionSeq,
     TCRDossier,
-    Warning,
 )
 from .input_router import route
 from .annotator import annotate
@@ -69,7 +69,7 @@ def _gene_path(
     genes: dict[str, Optional[GeneCall]],
     regions: dict[str, Optional[RegionSeq]],
     provenance: list[Provenance],
-    warnings: list[Warning],
+    warnings: list[DossierWarning],
     want_seq: bool,
     want_germ: bool,
 ) -> str:
@@ -89,7 +89,7 @@ def _gene_path(
     # Non-V genes: recognized but not enriched. Never slot as V, never fabricate.
     if segment in ("D", "J", "C"):
         warnings.append(
-            Warning(code="partial_annotation", block="genes",
+            DossierWarning(code="partial_annotation", block="genes",
                     message=(f"germline enrichment is only available for V genes in "
                              f"this build; {gene} recognized but not enriched"))
         )
@@ -100,7 +100,7 @@ def _gene_path(
     # Unresolved V gene (valid pattern, absent from germline): no fake call.
     if not res["allele"]:
         warnings.append(
-            Warning(code="ambiguous_gene", block="genes",
+            DossierWarning(code="ambiguous_gene", block="genes",
                     message=f"V gene {gene} not found in germline")
         )
         return chain
@@ -145,7 +145,7 @@ def _seq_path(
     dt: str,
     genes: dict[str, Optional[GeneCall]],
     provenance: list[Provenance],
-    warnings: list[Warning],
+    warnings: list[DossierWarning],
 ) -> str:
     """Annotation path for a raw nucleotide / amino-acid query.
 
@@ -163,7 +163,7 @@ def _seq_path(
         genes["d"] = GeneCall(call=ann.d_call, score_method=method)
 
     for code, msg in ann.warnings:
-        warnings.append(Warning(code=code, block="annotation", message=msg))
+        warnings.append(DossierWarning(code=code, block="annotation", message=msg))
 
     if ann.v_call or ann.j_call or ann.d_call:
         provenance.append(
@@ -183,22 +183,37 @@ def build_dossier(
     request: DossierRequest,
     epitope_lookup: Callable[..., tuple[list[IEDBHit], int]] = lookup_known_epitopes,
 ) -> TCRDossier:
-    warnings: list[Warning] = []
+    warnings: list[DossierWarning] = []
     provenance: list[Provenance] = []
     want_seq = "sequences" in request.include
     want_germ = "germline" in request.include
 
     routed = route(request.query, request.input_type)
     for code, msg in routed.warnings:
-        warnings.append(Warning(code=code, block=None, message=msg))
+        warnings.append(DossierWarning(code=code, block=None, message=msg))
 
     genes: dict[str, Optional[GeneCall]] = {"v": None, "d": None, "j": None, "c": None}
-    regions: dict[str, Optional[RegionSeq]] = {}
+    # Pre-seed every region key so the top-level sub-object shape is stable for
+    # strict JSON-schema / function-calling consumers (keys present, values None).
+    regions: dict[str, Optional[RegionSeq]] = {
+        "fr1": None, "fr2": None, "fr3": None, "fr4": None,
+        "cdr1": None, "cdr2": None, "cdr3": None,
+    }
     junction: Optional[Junction] = None
+    full_sequence: Optional[RegionSeq] = None
     chain = "unknown"
 
     dt = routed.detected_type
-    if dt in ("gene_name", "allele"):
+    # V + J + CDR3 reconstruction path. Reachable when the caller supplies v_gene
+    # and j_gene alongside a CDR3 (explicit cdr3_aa, or a raw_aa query used as the
+    # CDR3). Everything it emits is synthetic/derived, never marked observed.
+    cdr3_for_recon = request.cdr3_aa or (routed.normalized if dt == "raw_aa" else None)
+    if request.v_gene and request.j_gene and cdr3_for_recon:
+        chain, junction, full_sequence = _reconstruction_path(
+            request, cdr3_for_recon, genes, regions, provenance,
+            warnings, want_seq, want_germ,
+        )
+    elif dt in ("gene_name", "allele"):
         chain = _gene_path(routed.normalized, request, genes, regions,
                            provenance, warnings, want_seq, want_germ)
     elif dt in ("raw_nt", "raw_aa"):
@@ -218,12 +233,12 @@ def build_dossier(
             resolved = resolve_id(routed.source, ident)
         if not resolved:
             warnings.append(
-                Warning(code="source_unavailable", block="annotation",
+                DossierWarning(code="source_unavailable", block="annotation",
                         message=f"could not resolve id {routed.normalized!r}")
             )
     else:
         warnings.append(
-            Warning(code="unresolved_input_type", block=None,
+            DossierWarning(code="unresolved_input_type", block=None,
                     message="query could not be routed")
         )
 
@@ -249,7 +264,7 @@ def build_dossier(
         genes=genes,
         regions=regions,
         junction=junction,
-        full_sequence=None,
+        full_sequence=full_sequence,
         known_epitopes=hits,
         known_epitopes_total=max(total, len(hits)),
         provenance=provenance,
@@ -282,3 +297,52 @@ def _build_junction_from_cdr3(
             )
             return Junction(cdr3_aa=cdr3_aa, cdr3_nt=cdr3_nt, cdr3_nt_is_synthetic=True)
     return Junction(cdr3_aa=cdr3_aa)
+
+
+def _reconstruction_path(
+    request: DossierRequest,
+    cdr3_aa: str,
+    genes: dict[str, Optional[GeneCall]],
+    regions: dict[str, Optional[RegionSeq]],
+    provenance: list[Provenance],
+    warnings: list[DossierWarning],
+    want_seq: bool,
+    want_germ: bool,
+) -> tuple[str, Junction, Optional[RegionSeq]]:
+    """Assemble a full dossier from a supplied V gene, J gene, and CDR3.
+
+    Everything produced here is synthetic/derived, never observed:
+      * the V call and its CDR1/CDR2/germline come from the germline lookup
+        (`_gene_path`), which also fixes the chain;
+      * the J gene is recorded verbatim as the caller supplied it;
+      * the junction cdr3_nt is back-translated (flagged synthetic) via the
+        shared `_build_junction_from_cdr3` machinery;
+      * `full_sequence` is the reconstructor's assembled aa (always) plus its
+        nt (only when `include` requests sequences), tagged `back_translated`.
+    Never marks any nt as observed.
+    """
+    # V germline enrichment (also sets chain, CDR1/CDR2, germline_aa/nt).
+    chain = _gene_path(request.v_gene, request, genes, regions,
+                       provenance, warnings, want_seq, want_germ)
+    # Record the caller's J gene call verbatim (not scored, not fabricated).
+    j_call = request.j_gene.split("*")[0]
+    genes["j"] = GeneCall(call=j_call)
+    # Ensure the junction reconstruction can proceed even if the V gene was not
+    # found in germline: back-translation of the CDR3 does not need germline.
+    if genes["v"] is None:
+        genes["v"] = GeneCall(call=request.v_gene.split("*")[0])
+
+    junction = _build_junction_from_cdr3(cdr3_aa, genes, request, provenance)
+
+    full_sequence: Optional[RegionSeq] = None
+    res = reconstruct_tcr(request.v_gene, request.j_gene, cdr3_aa, request.species)
+    if res.get("full_aa"):
+        full_sequence = RegionSeq(
+            aa=res["full_aa"],
+            nt=res["full_nt"] if want_seq else None,
+        )
+        provenance.append(
+            Provenance(block="full_sequence", source="reconstructor",
+                       confidence="medium", kind="back_translated")
+        )
+    return chain, junction, full_sequence

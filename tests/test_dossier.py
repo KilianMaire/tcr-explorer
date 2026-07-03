@@ -1,3 +1,5 @@
+import pytest
+from imgt_app.cdr_enricher import _stitchr_data_dir
 from imgt_app.dossier_models import DossierRequest
 from imgt_app.dossier import build_dossier
 
@@ -52,3 +54,39 @@ def test_projection_hides_long_nt_by_default():
     d = build_dossier(DossierRequest(query="TRBV20-1"))
     if d.genes.get("v"):
         assert d.genes["v"].germline_nt is None  # include empty -> no germline_nt
+
+
+@pytest.mark.skipif(_stitchr_data_dir() is None, reason="stitchr germline not installed")
+def test_vj_cdr3_reconstruction_produces_full_dossier():
+    # Supplying V + J + CDR3 makes the reconstruction (synthetic-nt) path reachable
+    # end-to-end: junction cdr3_nt is flagged synthetic, and full_sequence.aa exists.
+    d = build_dossier(DossierRequest(
+        query="CASSFGTEAFF", input_type="raw_aa",
+        v_gene="TRBV20-1", j_gene="TRBJ2-7", cdr3_aa="CASSFGTEAFF",
+        include=["sequences"],
+    ))
+    assert d.junction is not None
+    assert d.junction.cdr3_aa == "CASSFGTEAFF"
+    assert d.junction.cdr3_nt is not None
+    assert d.junction.cdr3_nt_is_synthetic is True
+    assert any(p.block == "junction" and p.kind == "back_translated" for p in d.provenance)
+    # full_sequence: aa always, nt present because "sequences" was requested.
+    assert d.full_sequence is not None
+    assert d.full_sequence.aa is not None
+    assert d.full_sequence.nt is not None
+    assert any(p.block == "full_sequence" and p.kind == "back_translated" for p in d.provenance)
+    # V resolved, J recorded verbatim, never marked observed.
+    assert d.genes["v"] is not None and d.genes["v"].call == "TRBV20-1"
+    assert d.genes["j"] is not None and d.genes["j"].call == "TRBJ2-7"
+
+
+@pytest.mark.skipif(_stitchr_data_dir() is None, reason="stitchr germline not installed")
+def test_vj_cdr3_reconstruction_gates_full_nt_by_projection():
+    # Without "sequences" in include, the synthetic full_sequence nt must be hidden.
+    d = build_dossier(DossierRequest(
+        query="CASSFGTEAFF", input_type="raw_aa",
+        v_gene="TRBV20-1", j_gene="TRBJ2-7", cdr3_aa="CASSFGTEAFF",
+    ))
+    assert d.full_sequence is not None
+    assert d.full_sequence.aa is not None
+    assert d.full_sequence.nt is None

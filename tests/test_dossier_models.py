@@ -1,5 +1,5 @@
 from imgt_app.dossier_models import (
-    DossierRequest, TCRDossier, GeneCall, Warning, WarningCode,
+    DossierRequest, TCRDossier, GeneCall, DossierWarning, WarningCode,
 )
 
 def test_request_defaults():
@@ -17,11 +17,11 @@ def test_dossier_minimal_valid():
         genes={"v": None, "d": None, "j": None, "c": None},
         regions={}, junction=None, full_sequence=None,
         known_epitopes=[], known_epitopes_total=0,
-        provenance=[], warnings=[Warning(code="partial_annotation", block=None, message="m")],
+        provenance=[], warnings=[DossierWarning(code="partial_annotation", block=None, message="m")],
     )
     assert d.warnings[0].code == "partial_annotation"
 
 def test_warning_code_is_constrained():
     import pydantic, pytest
     with pytest.raises(pydantic.ValidationError):
-        Warning(code="not_a_real_code", message="m")
+        DossierWarning(code="not_a_real_code", message="m")

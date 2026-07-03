@@ -7,13 +7,30 @@ fallback used when IgBLAST is absent.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Optional
-from .cdr_enricher import _cached_v_map, _SPECIES_STITCHR
+from .cdr_enricher import _cached_v_map, _SPECIES_STITCHR, _translate
 from .reconstructor import _cached_j_map
 
 _K = 7
 _CHAINS = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}
 _HAS_D = {"TRB", "TRD"}
+
+
+@lru_cache(maxsize=8)
+def _cached_v_aa_map(chain: str, species_str: str) -> dict[str, str]:
+    """Amino-acid germline V map: each nt V-REGION translated to protein.
+
+    Used only for protein-mode k-mer scoring, so an aa query is compared
+    against aa germline (not nucleotide germline, which would never match).
+    """
+    return {g: _translate(nt).rstrip("*") for g, nt in _cached_v_map(chain, species_str).items()}
+
+
+@lru_cache(maxsize=8)
+def _cached_j_aa_map(chain: str, species_str: str) -> dict[str, str]:
+    """Amino-acid germline J map (nt J-REGION translated to protein)."""
+    return {g: _translate(nt).rstrip("*") for g, nt in _cached_j_map(chain, species_str).items()}
 
 
 @dataclass
@@ -52,10 +69,15 @@ def annotate_sequence(seq: str, species: str, is_protein: bool) -> KmerAnnotatio
         ann.warnings.append(("aa_annotation_limited",
             "protein input yields V-region annotation only; no D and no junction nt"))
     qk = _kmers(seq)
+    # Protein queries must be scored against TRANSLATED (amino-acid) germline;
+    # nucleotide germline k-mers would never match an aa query. nt-mode is
+    # unchanged (scored against the raw nt germline maps).
+    v_map_for = _cached_v_aa_map if is_protein else _cached_v_map
+    j_map_for = _cached_j_aa_map if is_protein else _cached_j_map
     # Try each chain's V map; the chain with the best V hit wins.
     best_overall = (None, 0.0, None)  # (v_gene, score, chain_key)
     for chain_key in _CHAINS:
-        vmap = _cached_v_map(chain_key, sp)
+        vmap = v_map_for(chain_key, sp)
         g, sc = _best(qk, vmap)
         if sc > best_overall[1]:
             best_overall = (g, sc, chain_key)
@@ -63,7 +85,7 @@ def annotate_sequence(seq: str, species: str, is_protein: bool) -> KmerAnnotatio
     if chain_key is None:
         return ann
     ann.v_call, ann.v_score, ann.chain = v_gene, v_score, _CHAINS[chain_key]
-    jmap = _cached_j_map(chain_key, sp)
+    jmap = j_map_for(chain_key, sp)
     ann.j_call, ann.j_score = _best(qk, jmap)
     if chain_key in _HAS_D:
         ann.d_call = None

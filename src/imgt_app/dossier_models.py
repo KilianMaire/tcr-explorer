@@ -25,6 +25,9 @@ class DossierRequest(BaseModel):
     species: SpeciesType = "human"
     mode: ModeType = "fast"
     include: list[IncludeFlag] = Field(default_factory=list)
+    v_gene: Optional[str] = None
+    j_gene: Optional[str] = None
+    cdr3_aa: Optional[str] = None
 
 class GeneCall(BaseModel):
     call: Optional[str] = None
@@ -51,7 +54,7 @@ class Provenance(BaseModel):
     confidence: ProvConfidence
     kind: Optional[ProvKind] = None
 
-class Warning(BaseModel):
+class DossierWarning(BaseModel):
     code: WarningCode
     block: Optional[str] = None
     message: str
@@ -70,4 +73,4 @@ class TCRDossier(BaseModel):
     known_epitopes: list[IEDBHit] = Field(default_factory=list)
     known_epitopes_total: int = 0
     provenance: list[Provenance] = Field(default_factory=list)
-    warnings: list[Warning] = Field(default_factory=list)
+    warnings: list[DossierWarning] = Field(default_factory=list)

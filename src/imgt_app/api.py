@@ -948,7 +948,12 @@ def _dossier_markdown(d: TCRDossier) -> str:
 
 
 @app.post("/v1/tcr/dossier", response_model=TCRDossier)
-async def tcr_dossier(req: DossierRequest, request: Request):
+def tcr_dossier(req: DossierRequest, request: Request):
+    # Synchronous by design: build_dossier is fully synchronous and its epitope
+    # lookup (dossier_epitopes._run_search) must create its own event loop, which
+    # it can only do off the request's running loop. FastAPI runs a sync route in
+    # a threadpool, so known_epitopes actually surface (an async route left them
+    # permanently empty).
     from .dossier import build_dossier  # local import: avoids circular import
     # (dossier -> dossier_epitopes -> api.search/_IEDB_HITS_CAP)
 
