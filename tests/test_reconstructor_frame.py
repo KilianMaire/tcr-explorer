@@ -34,3 +34,16 @@ def test_no_spurious_residue_at_cdr3_j_junction():
     aa = r["full_aa"]
     assert "CASSLGTEAFFGQGTRLTVV" in aa, aa
     assert "AFFF" not in aa, aa
+
+
+def test_composition_pieces_are_in_frame():
+    # The composition germline pieces must translate cleanly (no stop codons),
+    # not from the raw region nt which are not frame 0.
+    from imgt_app.records import build_record
+    row = dict(source="vdjdb", source_record_id="x", pairing_key="p", external_url="u",
+               chain="beta", species="human", cdr3_aa="CASSLGTEAFF",
+               v_gene="TRBV4-1", j_gene="TRBJ1-1")
+    c = build_record(row).composition
+    assert c is not None
+    assert "*" not in (c.v_germline_aa or "") and "*" not in (c.j_germline_aa or "")
+    assert c.j_germline_aa and c.j_germline_aa.startswith("GQGTRLTVV")

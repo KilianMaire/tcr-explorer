@@ -119,13 +119,18 @@ def build_record(
             if rec.cdr3_nt is None and rc.get("cdr3_nt"):
                 rec.cdr3_nt = rc["cdr3_nt"]
                 rec.cdr3_nt_kind = "reconstructed"
+            # Use the in-frame pieces actually assembled (V up to Cys104, J FR4
+            # after Phe/Trp118), not the raw region nt, which are not frame 0 and
+            # would translate to garbage with stop codons.
+            v_piece = rc.get("v_prefix_nt")
+            j_piece = rc.get("j_suffix_nt")
             rec.composition = Composition(
                 cdr3_aa=row["cdr3_aa"],
-                v_region_nt=rc.get("v_region_nt"),
+                v_region_nt=v_piece,
                 cdr3_nt=rc.get("cdr3_nt"),
-                j_region_nt=rc.get("j_region_nt"),
-                v_germline_aa=_translate(rc["v_region_nt"]) if rc.get("v_region_nt") else None,
-                j_germline_aa=_translate(rc["j_region_nt"]) if rc.get("j_region_nt") else None,
+                j_region_nt=j_piece,
+                v_germline_aa=_translate(v_piece) if v_piece else None,
+                j_germline_aa=_translate(j_piece) if j_piece else None,
                 note="reconstructed from V and J germline plus back translated CDR3",
             )
     return rec

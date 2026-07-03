@@ -235,6 +235,8 @@ def reconstruct_tcr(
 
     full_nt: Optional[str] = None
     full_aa: Optional[str] = None
+    v_prefix: Optional[str] = None
+    j_suffix: Optional[str] = None
 
     if v_nt and j_nt:
         # V-REGION from stitchr is not guaranteed codon-aligned to Cys104
@@ -261,6 +263,11 @@ def reconstruct_tcr(
         "v_region_nt": v_nt or None,
         "cdr3_nt": cdr3_nt,
         "j_region_nt": j_nt or None,
+        # The actual in-frame pieces used in the assembly: the V germline up to
+        # (not including) Cys104, and the J germline FR4 after Phe/Trp118. These
+        # translate cleanly, unlike the raw region nt which are not frame 0.
+        "v_prefix_nt": v_prefix,
+        "j_suffix_nt": j_suffix,
         "v_found": bool(v_nt),
         "j_found": bool(j_nt),
         "note": (
