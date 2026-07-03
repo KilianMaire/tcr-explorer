@@ -61,25 +61,54 @@ def _chain_name_for_gene(gene: str) -> str:
     return _CHAIN_NAME.get(_gene_to_chain(gene), "unknown")
 
 
+def _segment_letter(gene: str) -> Optional[str]:
+    """IMGT segment letter (V/D/J/C) — the 4th char of a TR gene, e.g. TRBV20-1 -> 'V'."""
+    g = gene.strip().upper()
+    return g[3] if len(g) >= 4 and g[:2] == "TR" and g[3] in "VDJC" else None
+
+
 def _gene_path(
     gene: str,
     request: DossierRequest,
     genes: dict[str, Optional[GeneCall]],
     regions: dict[str, Optional[RegionSeq]],
     provenance: list[Provenance],
+    warnings: list[Warning],
     want_seq: bool,
     want_germ: bool,
 ) -> str:
     """Germline lookup path for a gene-name / allele query.
 
-    Populates the V `GeneCall`, CDR1/CDR2 regions from the germline, and (when
-    requested) the germline nucleotide sequence, each with matching provenance.
-    Returns the dossier chain name.
+    Only V genes are enriched in this build. A V gene that resolves in germline
+    populates the V `GeneCall`, CDR1/CDR2 regions, and (when requested) the
+    germline nucleotide sequence, each with matching provenance. An unresolved
+    V gene or a non-V (D/J/C) gene is NOT slotted or fabricated — it degrades to
+    a warning. The chain, derived from the gene name, is honest to set either
+    way. Returns the dossier chain name.
     """
     chain = _chain_name_for_gene(gene)
     call = gene.split("*")[0]
+    segment = _segment_letter(gene)
+
+    # Non-V genes: recognized but not enriched. Never slot as V, never fabricate.
+    if segment in ("D", "J", "C"):
+        warnings.append(
+            Warning(code="partial_annotation", block="genes",
+                    message=(f"germline enrichment is only available for V genes in "
+                             f"this build; {gene} recognized but not enriched"))
+        )
+        return chain
 
     res = get_cdr1_cdr2(gene, request.species)
+
+    # Unresolved V gene (valid pattern, absent from germline): no fake call.
+    if not res["allele"]:
+        warnings.append(
+            Warning(code="ambiguous_gene", block="genes",
+                    message=f"V gene {gene} not found in germline")
+        )
+        return chain
+
     v = GeneCall(call=call, allele=res["allele"], score_method="kmer")
 
     if res["cdr1_aa"] or res["cdr2_aa"]:
@@ -99,17 +128,16 @@ def _gene_path(
         )
 
     # Germline sequence is honest only when the stitchr V-map actually holds it.
-    if res["allele"]:
-        stitchr_species = _SPECIES_STITCHR.get(request.species.lower(), "HUMAN")
-        v_nt = _cached_v_map(_gene_to_chain(gene), stitchr_species).get(call.upper())
-        if v_nt:
-            v.germline_aa = _translate(v_nt).rstrip("*") or None
-            if want_germ:
-                v.germline_nt = v_nt
-            provenance.append(
-                Provenance(block="germline", source="cdr_enricher",
-                           confidence="high", kind="germline_lookup")
-            )
+    stitchr_species = _SPECIES_STITCHR.get(request.species.lower(), "HUMAN")
+    v_nt = _cached_v_map(_gene_to_chain(gene), stitchr_species).get(call.upper())
+    if v_nt:
+        v.germline_aa = _translate(v_nt).rstrip("*") or None
+        if want_germ:
+            v.germline_nt = v_nt
+        provenance.append(
+            Provenance(block="germline", source="cdr_enricher",
+                       confidence="high", kind="germline_lookup")
+        )
 
     genes["v"] = v
     return chain
@@ -176,7 +204,7 @@ def build_dossier(
     dt = routed.detected_type
     if dt in ("gene_name", "allele"):
         chain = _gene_path(routed.normalized, request, genes, regions,
-                           provenance, want_seq, want_germ)
+                           provenance, warnings, want_seq, want_germ)
     elif dt in ("raw_nt", "raw_aa"):
         chain = _seq_path(routed.normalized, request, dt, genes, provenance, warnings)
         # A raw amino-acid TCR query is treated as a CDR3 candidate. We can only
