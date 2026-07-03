@@ -103,7 +103,14 @@ class AskResponse(BaseModel):
     dossier: Optional["TCRDossier"] = None
     neighbours_result: Optional["SimilarResponse"] = None
     search_result: Optional[Any] = None   # SearchResponse
-    warnings: list["DossierWarning"] = Field(default_factory=list)
+    warnings: list["DossierWarning"] = Field(
+        default_factory=list,
+        description=(
+            "Warnings from the dossier path only. Similar/search-path warnings "
+            "are nested in neighbours_result.warnings / search_result respectively, "
+            "not surfaced here."
+        ),
+    )
 
 class TCRDossier(BaseModel):
     schema_version: str = "1.0"

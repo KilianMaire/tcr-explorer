@@ -14,6 +14,7 @@ from .llm_client import llm_available, llm_json
 from .input_router import route
 from .dossier import build_dossier, find_similar_tcrs
 from .models import SearchRequest
+from .nl_query import heuristic_parse
 
 _SYS = (
     "You route a TCR question. Return JSON with key 'intent' one of "
@@ -29,13 +30,22 @@ def _run_search_sync(req: SearchRequest):
     return _run_search(req)
 
 
+_DOSSIER_TYPES = ("raw_nt", "raw_aa", "gene_name", "allele", "id")
+
+
 def _heuristic_plan(query: str, species: str) -> dict:
     q = query.lower()
     if any(k in q for k in ("similar", "nearest", "neighbour", "neighbor", "close to")):
         return {"intent": "similar", "query": query}
-    r = route(query.split()[0] if query.split() else query, "auto")
-    if r.detected_type in ("raw_nt", "raw_aa", "gene_name", "allele", "id"):
-        return {"intent": "dossier", "query": query.split()[0]}
+    # Only accept an unambiguous classification (no router warnings). Plain
+    # English words are frequently spellable in the amino-acid alphabet (e.g.
+    # "what", "search") and the router flags those with an ambiguous_alphabet
+    # warning; without this guard such filler words would be misrouted to
+    # dossier ahead of the real gene/sequence token later in the query.
+    for tok in query.split():
+        r = route(tok, "auto")
+        if r.detected_type in _DOSSIER_TYPES and not r.warnings:
+            return {"intent": "dossier", "query": tok}
     return {"intent": "search", "query": query}
 
 
@@ -51,8 +61,7 @@ def _tokens(query):
     return query.replace(",", " ").split()
 
 
-def answer(request: AskRequest) -> AskResponse:
-    plan, source, llm_used = plan_intent(request.query, request.species)
+def _execute(request: AskRequest, plan: dict, source: str, llm_used: bool) -> AskResponse:
     intent = plan.get("intent", "search")
     if intent == "dossier":
         q = plan.get("query") or plan.get("gene_name") or request.query
@@ -85,6 +94,29 @@ def answer(request: AskRequest) -> AskResponse:
             ),
         )
     # search
-    sr = SearchRequest(gene_name=plan.get("gene_name"), species=request.species)
+    gene_name = plan.get("gene_name")
+    if gene_name:
+        sr = SearchRequest(gene_name=gene_name, species=request.species)
+    else:
+        parsed = heuristic_parse(request.query)
+        sr = SearchRequest(
+            gene_name=parsed.gene_name,
+            region=parsed.region,
+            sequence_contains=parsed.sequence_contains,
+            antigen_epitope=parsed.antigen_epitope,
+            source=parsed.source,
+            species=request.species,
+        )
     result = _run_search_sync(sr)
     return AskResponse(intent="search", plan_source=source, llm_used=llm_used, search_result=result)
+
+
+def answer(request: AskRequest) -> AskResponse:
+    plan, source, llm_used = plan_intent(request.query, request.species)
+    if source == "llm":
+        try:
+            return _execute(request, plan, source, llm_used)
+        except Exception:
+            plan = _heuristic_plan(request.query, request.species)
+            return _execute(request, plan, "heuristic", False)
+    return _execute(request, plan, source, llm_used)
