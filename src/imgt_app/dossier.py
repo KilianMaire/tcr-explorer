@@ -32,6 +32,8 @@ from .reconstructor import reconstruct_tcr
 from .models import IEDBHit
 from .dossier_epitopes import lookup_known_epitopes, resolve_id
 from .similarity import find_similar_tcrs
+from .dossier_models import RecordsRequest, TCRRecord
+from .records import retrieve_records
 
 
 # Map cdr_enricher's chain codes (TRA/TRB/TRG/TRD) to dossier chain names.
@@ -293,6 +295,23 @@ def build_dossier(
             provenance.append(Provenance(block="neighbours", source="unitcr",
                 confidence="low", kind="neighbor_inferred"))
 
+    # Raw federated records: only attempted once something resolved (a CDR3
+    # for reconstruction, or a gene). A retrieval failure must never break the
+    # dossier; it degrades to a warning instead.
+    dossier_records: list[TCRRecord] = []
+    resolved_gene = genes["v"] or genes["j"]
+    if cdr3_for_recon or resolved_gene:
+        try:
+            records_resp = retrieve_records(
+                RecordsRequest(cdr3_aa=cdr3_q, v_gene=v_q, j_gene=j_q, species=request.species)
+            )
+            dossier_records = records_resp.exact[:20]
+        except Exception as exc:
+            warnings.append(
+                DossierWarning(code="records_index_unavailable", block="records",
+                        message=f"records retrieval failed: {exc}")
+            )
+
     status = "complete" if (genes["v"] and not warnings) else "partial"
     summary = _summarize(chain, genes, hits)
     return TCRDossier(
@@ -310,6 +329,7 @@ def build_dossier(
         provenance=provenance,
         warnings=warnings,
         neighbours=dossier_neighbours,
+        records=dossier_records,
     )
 
 

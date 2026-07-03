@@ -129,6 +129,7 @@ class TCRDossier(BaseModel):
     provenance: list[Provenance] = Field(default_factory=list)
     warnings: list[DossierWarning] = Field(default_factory=list)
     neighbours: Optional[list[Neighbour]] = None
+    records: list["TCRRecord"] = Field(default_factory=list)
 
 class AlignedRecord(BaseModel):
     name: str

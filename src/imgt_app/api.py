@@ -23,6 +23,8 @@ from .dossier_models import (
     AskResponse,
     DossierRequest,
     MSAResult,
+    RecordsRequest,
+    RecordsResponse,
     SimilarRequest,
     SimilarResponse,
     TCRDossier,
@@ -988,6 +990,16 @@ def tcr_similar(req: SimilarRequest):
         min_similarity=req.min_similarity,
     )
     return SimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)
+
+
+@app.post("/v1/tcr/records", response_model=RecordsResponse)
+def tcr_records(req: RecordsRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier above: retrieval
+    # reads a parquet index off disk via sync helpers that must not run inside
+    # a running event loop, so it runs in FastAPI's threadpool.
+    from .records import retrieve_records  # local import: avoids import cycles
+
+    return retrieve_records(req)
 
 
 @app.post("/v1/tcr/align", response_model=MSAResult)

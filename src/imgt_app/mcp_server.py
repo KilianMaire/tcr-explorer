@@ -9,10 +9,11 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .dossier_models import DossierRequest, AskRequest, SimilarResponse
+from .dossier_models import DossierRequest, AskRequest, RecordsRequest, SimilarResponse
 from .dossier_models import AlignRequest as _AlignRequest
 from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
 from .ask import answer as answer_fn
+from .records import retrieve_records as retrieve_records_fn
 
 mcp = FastMCP("imgt-tcr")
 
@@ -69,6 +70,28 @@ def align_tcr_genes(species: str = "human", chain: Optional[str] = None,
     from .msa import align
     return align(_AlignRequest(species=species, chain=chain, segment=segment, genes=genes,
                                sequences=sequences, seq_type=seq_type, translate=translate)).model_dump()
+
+@mcp.tool(annotations=_READ_ONLY)
+def retrieve_tcr_records(query: str = "", cdr3: str = "", cdr3_b: str = "",
+                         v_gene: str = "", j_gene: str = "", species: str = "",
+                         top_k: int = 50) -> dict:
+    """Retrieve raw federated TCR records (VDJdb/IEDB/McPAS/TCR3d) for a query:
+    a CDR3, a V/J gene pair, an alpha+beta pair (cdr3 + cdr3_b), or a namespaced
+    database id (vdjdb:/iedb:/mcpas:/tcr3d:) passed as query. Returns exact hits
+    and BLOSUM near neighbours kept strictly separate, plus any alpha/beta pairs
+    found by shared pairing_key. Species is 'human' or 'mouse'; leave blank for
+    all species."""
+    req = RecordsRequest(
+        query=query or None,
+        cdr3_aa=cdr3 or None,
+        cdr3_aa_b=cdr3_b or None,
+        v_gene=v_gene or None,
+        j_gene=j_gene or None,
+        species=species or None,
+        top_k=top_k,
+    )
+    return retrieve_records_fn(req).model_dump()
+
 
 def main() -> None:
     mcp.run()
