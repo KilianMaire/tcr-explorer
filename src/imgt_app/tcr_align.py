@@ -150,15 +150,24 @@ def _map_target_to_query(aln, target_pos: int):
 
 def _region_identity(aln, ref: str, query: str, start: int, end: int):
     """Identity over a reference region span, matches divided by region length.
-    Query positions that do not align to the region count as mismatches."""
+    Query positions that do not align to the region count as mismatches.
+
+    Returns None when no query position covers the region at all (a partial
+    input missing that region), so the caller omits it rather than reporting a
+    misleading 0.0 that would read as fully divergent."""
     end = min(end, len(ref))
     if start >= end:
         return None
     matches = 0
+    covered = 0
     for t in range(start, end):
         q = _map_target_to_query(aln, t)
-        if q is not None and q < len(query) and ref[t] == query[q]:
-            matches += 1
+        if q is not None and q < len(query):
+            covered += 1
+            if ref[t] == query[q]:
+                matches += 1
+    if covered == 0:
+        return None
     return matches / (end - start)
 
 
@@ -202,7 +211,14 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
         frame = 0
         if win_v:
             aln_frame = _aligner().align(win_v.nt, seq)[0]
-            frame = int(aln_frame.aligned[1][0][0]) % 3
+            target_blocks, query_blocks = aln_frame.aligned
+            tstart = int(target_blocks[0][0])
+            qstart = int(query_blocks[0][0])
+            # The query reading frame is where the V allele's own frame 0 falls
+            # on the query. A mid-V fragment aligns at target start tstart > 0,
+            # so the frame is (qstart - tstart) % 3, not qstart % 3 (the two
+            # agree only when tstart is a multiple of 3).
+            frame = (qstart - tstart) % 3
         query_aa = _translate(seq[frame:])
 
     # V refusal rule and per region identity share one alignment of the query

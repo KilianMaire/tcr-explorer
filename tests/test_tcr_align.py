@@ -87,3 +87,53 @@ def test_point_mutation_shows_in_region_breakdown():
     a = assign(mutated, species="human", chain="TRB")
     assert a.regions.get("CDR1", 1.0) < 1.0
     assert a.regions.get("FR1", 0.0) == 1.0
+
+
+def test_partial_input_reading_frame_is_derived_from_target_offset():
+    # A nucleotide fragment that starts a few codons into the V region aligns
+    # at target start tstart > 0, with tstart % 3 != 0. The correct query
+    # reading frame is (qstart - tstart) % 3, not qstart % 3; the old code used
+    # qstart % 3 and translated the fragment out of frame, so the CDR3 could not
+    # be mapped. Dropping the first 4 nt shifts the natural frame by 2.
+    from imgt_app.reconstructor import reconstruct_tcr
+    from imgt_app.tcr_align import assign
+    built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
+    partial = built["full_nt"][4:]  # tstart == 4 -> tstart % 3 == 1
+    a = assign(partial, species="human", chain="TRB")
+    # Amino acid content is recovered only with the corrected frame; under
+    # qstart % 3 the translation is out of frame and cdr3_aa is None.
+    assert a.cdr3_aa == "CASSIRSSYEQYF"
+    assert a.v_determinable
+    # Covered regions read near identity (nt-level, so the mutation-free
+    # fragment stays high for every region it actually covers).
+    for name, ident in a.regions.items():
+        assert ident > 0.9, (name, ident)
+
+
+def test_uncovered_regions_are_omitted_not_zeroed():
+    # A fragment starting inside FR2 leaves FR1 and CDR1 with no covered
+    # positions. They must be omitted from the regions dict, not reported as
+    # 0.0 (which would read as fully divergent rather than not covered).
+    from imgt_app.reconstructor import reconstruct_tcr
+    from imgt_app.tcr_align import assign
+    built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
+    frag = built["full_nt"][120:]  # begins past FR1/CDR1
+    a = assign(frag, species="human", chain="TRB")
+    assert "FR1" not in a.regions
+    assert "CDR1" not in a.regions
+    # The covered regions are still present and high identity.
+    assert a.regions.get("FR3", 0.0) > 0.9
+
+
+def test_d_call_is_always_low_confidence_on_human_beta():
+    # A human beta nucleotide chain with want_d must either return a D call
+    # carrying the always-on low_confidence flag, or, when no D germline is
+    # vendored, warn honestly about the absence. Never a confident D guess.
+    from imgt_app.reconstructor import reconstruct_tcr
+    from imgt_app.tcr_align import assign
+    built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
+    a = assign(built["full_nt"], species="human", chain="TRB", want_d=True)
+    if a.d_call is not None:
+        assert a.d_call["low_confidence"] is True
+    else:
+        assert any("D" in w for w in a.warnings)
