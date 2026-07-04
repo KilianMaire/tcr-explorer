@@ -8,3 +8,8 @@ logs/
 .DS_Store
 .pytest_cache/
 data/raw/
+
+# Build artifacts
+/dist/
+/build/
+*.egg-info/
