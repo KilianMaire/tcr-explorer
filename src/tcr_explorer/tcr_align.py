@@ -16,6 +16,22 @@ from .records import infer_vj_from_cdr3
 
 _NT = set("ACGTN")
 _CHAINS = ("TRA", "TRB", "TRG", "TRD")
+_CHAIN_SYNONYMS = {
+    "alpha": "TRA", "beta": "TRB", "gamma": "TRG", "delta": "TRD",
+    "tra": "TRA", "trb": "TRB", "trg": "TRG", "trd": "TRD",
+}
+
+
+def _normalize_chain(chain: str) -> str | None:
+    """Map a caller-supplied chain to a canonical TRA/TRB/TRG/TRD, or None if it
+    is not recognized. Accepts the IMGT codes and the alpha/beta/gamma/delta
+    names, case-insensitively. Prevents a stray value like "beta" from silently
+    yielding an all-null assignment (germline_alleles would return nothing)."""
+    key = (chain or "").strip().lower()
+    if key in _CHAIN_SYNONYMS:
+        return _CHAIN_SYNONYMS[key]
+    up = (chain or "").strip().upper()
+    return up if up in _CHAINS else None
 
 
 def detect_alphabet(seq: str) -> str:
@@ -184,17 +200,34 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
     kind = detect_alphabet(seq)
     level = "nt" if kind == "nucleotide" else "aa"
     species = species or "human"
+
+    chain_warning: str | None = None
+    if chain:
+        norm = _normalize_chain(chain)
+        if norm is None:
+            chain_warning = (
+                f"unrecognized chain '{chain}'; expected one of "
+                f"{', '.join(_CHAINS)} (or alpha/beta/gamma/delta). Auto-detecting instead."
+            )
+            chain = None
+        else:
+            chain = norm
     chain = chain or detect_chain(seq, species, level)
 
     if chain is None:
+        warns = ["no germline alignment"]
+        if chain_warning:
+            warns.insert(0, chain_warning)
         return Assignment(
             input_kind=kind,
             species=species,
             chain=None,
-            warnings=["no germline alignment"],
+            warnings=warns,
         )
 
     warnings: list[str] = []
+    if chain_warning:
+        warnings.append(chain_warning)
     v_alleles = germline_alleles(species, chain, "V")
     j_alleles = germline_alleles(species, chain, "J")
     v_best = best_alleles(seq, v_alleles, level)

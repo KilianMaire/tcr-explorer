@@ -189,3 +189,27 @@ def test_d_call_is_always_low_confidence_on_human_beta():
         assert a.d_call["low_confidence"] is True
     else:
         assert any("D" in w for w in a.warnings)
+
+
+def test_chain_synonym_beta_is_normalized_not_silent_nulls():
+    from tcr_explorer.tcr_align import assign
+    # "beta" (a natural synonym) must resolve to TRB and produce a real call,
+    # not the old all-null silent result.
+    a = assign("DTAVYYCASSLGTEAFFGQGTRLTVV", species="human", chain="beta")
+    assert a.chain == "TRB"
+    assert (a.j_call is not None) or (a.v_call is not None)
+
+
+def test_unrecognized_chain_warns_and_autodetects():
+    from tcr_explorer.tcr_align import assign
+    a = assign("DTAVYYCASSLGTEAFFGQGTRLTVV", species="human", chain="zeta")
+    # falls back to auto-detection with an explicit warning, never silent nulls
+    assert any("unrecognized chain" in w for w in a.warnings)
+
+
+def test_normalize_chain_maps_codes_and_names():
+    from tcr_explorer.tcr_align import _normalize_chain
+    assert _normalize_chain("beta") == "TRB"
+    assert _normalize_chain("TRA") == "TRA"
+    assert _normalize_chain("delta") == "TRD"
+    assert _normalize_chain("nonsense") is None

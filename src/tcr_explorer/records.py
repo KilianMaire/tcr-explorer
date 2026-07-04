@@ -409,6 +409,18 @@ def _find_neighbours(work: pd.DataFrame, cdr3_aa: str, chains: Optional[set]) ->
     return out
 
 
+_STANDARD_AA = set("ACDEFGHIKLMNPQRSTVWY")
+
+
+def _nonstandard_residues(seq: Optional[str]) -> list[str]:
+    """Sorted unique non-standard residues in an amino acid query, or [] when the
+    query is empty or all-standard. Lets a CDR3 with e.g. 'Z' still search but be
+    flagged, rather than silently returning fuzzy neighbours for gibberish."""
+    if not seq:
+        return []
+    return sorted({c for c in seq.upper() if c not in _STANDARD_AA})
+
+
 def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) -> RecordsResponse:
     warnings: list[DossierWarning] = []
     request = _apply_nl_query(request)
@@ -442,6 +454,18 @@ def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) 
     sources_searched = sorted(str(s) for s in df["source"].dropna().unique().tolist())
 
     cdr3_aa, cdr3_aa_b, v_gene, j_gene, id_lookup = _parse_request(request)
+
+    for label, seq in (("cdr3", cdr3_aa), ("cdr3_b", cdr3_aa_b)):
+        bad = _nonstandard_residues(seq)
+        if bad:
+            warnings.append(
+                DossierWarning(
+                    code="nonstandard_residues",
+                    block="records",
+                    message=(f"{label} query contains non-standard amino acid residue(s): "
+                             f"{', '.join(bad)}. Any results are best-effort."),
+                )
+            )
 
     # Id lookup: filter by source_record_id verbatim, no neighbours, no species gate.
     if id_lookup is not None:

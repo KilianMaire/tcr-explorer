@@ -15,7 +15,8 @@ WarningCode = Literal[
     "aa_annotation_limited", "back_translated_nt", "partial_annotation", "timeout",
     "tcrdist_unavailable", "similarity_index_unavailable", "no_reference_candidates",
     "species_unsupported", "segment_unavailable", "too_few_sequences", "alignment_failed",
-    "no_pairing_found", "records_index_unavailable",
+    "no_pairing_found", "records_index_unavailable", "records_index_stale",
+    "nonstandard_residues",
 ]
 ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours", "alignment"]
 ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb", "unitcr", "tcrdist", "blosum_cdr3"]

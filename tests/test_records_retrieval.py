@@ -89,3 +89,27 @@ def test_id_query_resolves_one_record(idx):
 def test_free_query_cdr3_is_detected(idx):
     resp = R.retrieve_records(RecordsRequest(query="CASSLGTEAFF"), index_path=idx)
     assert resp.total_exact == 2
+
+
+def test_nonstandard_residue_query_is_flagged_not_faked(idx):
+    # A CDR3 with a non-standard residue (Z) must not silently return fuzzy
+    # neighbours as if valid: 0 exact + an explicit warning.
+    resp = R.retrieve_records(RecordsRequest(cdr3_aa="CZZZZZZZZZZF", species="human"), index_path=idx)
+    assert resp.total_exact == 0
+    codes = [w.code for w in resp.warnings]
+    assert "nonstandard_residues" in codes
+
+
+def test_standard_residue_query_has_no_nonstandard_warning(idx):
+    resp = R.retrieve_records(RecordsRequest(cdr3_aa="CASSLGTEAFF", species="human"), index_path=idx)
+    assert "nonstandard_residues" not in [w.code for w in resp.warnings]
+
+
+def test_stale_index_warning_is_a_valid_code(idx, monkeypatch):
+    # records_index_stale was constructed in code but missing from the WarningCode
+    # Literal: it would have raised a ValidationError on any >30-day-old index.
+    from tcr_explorer import data_paths
+    monkeypatch.setattr(data_paths, "is_stale", lambda *a, **k: True)
+    monkeypatch.setattr(data_paths, "index_age_days", lambda *a, **k: 42)
+    resp = R.retrieve_records(RecordsRequest(cdr3_aa="CASSLGTEAFF", species="human"), index_path=idx)
+    assert "records_index_stale" in [w.code for w in resp.warnings]
