@@ -100,4 +100,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Default command: run the main API gateway
-CMD ["uvicorn", "imgt_app.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "tcr_explorer.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,7 +1,7 @@
 import pandas as pd
 
-from imgt_app import similarity
-from imgt_app.similarity import find_similar_tcrs, cdr3_distance
+from tcr_explorer import similarity
+from tcr_explorer.similarity import find_similar_tcrs, cdr3_distance
 
 FIX = "tests/fixtures/unitcr_tiny.parquet"
 

@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from src.imgt_app.models import (
+from src.tcr_explorer.models import (
     BindingPredictionRequest,
     BindingPredictionResponse,
     BatchPredictionRequest,

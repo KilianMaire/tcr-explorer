@@ -1,4 +1,4 @@
-from imgt_app.dossier_models import (
+from tcr_explorer.dossier_models import (
     DossierRequest, TCRDossier, GeneCall, DossierWarning, WarningCode,
 )
 

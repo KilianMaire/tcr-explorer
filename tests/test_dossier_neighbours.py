@@ -1,10 +1,10 @@
-from imgt_app.dossier_models import DossierRequest
-from imgt_app.dossier import build_dossier
+from tcr_explorer.dossier_models import DossierRequest
+from tcr_explorer.dossier import build_dossier
 
 
 def test_neighbours_populated_and_separated(monkeypatch):
-    import imgt_app.dossier as D
-    from imgt_app.dossier_models import Neighbour
+    import tcr_explorer.dossier as D
+    from tcr_explorer.dossier_models import Neighbour
 
     def fake_similar(cdr3, v, j, species="human", top_k=10, min_similarity=0.0, index_path=None):
         return ([Neighbour(cdr3_b_aa="CASSLGTEAFF", v_b_gene="TRBV20-1", j_b_gene="TRBJ1-1",
@@ -24,8 +24,8 @@ def test_neighbours_driven_by_annotated_genes(monkeypatch):
     # No explicit v_gene/j_gene/cdr3_aa on the request: V/J come from the annotated
     # GeneCalls and CDR3 from the annotated junction. find_similar_tcrs is faked so
     # no real index is needed; assert the ANNOTATED V/J/CDR3 thread into scoring.
-    import imgt_app.dossier as D
-    from imgt_app.dossier_models import GeneCall, Junction, Neighbour
+    import tcr_explorer.dossier as D
+    from tcr_explorer.dossier_models import GeneCall, Junction, Neighbour
 
     captured = {}
 

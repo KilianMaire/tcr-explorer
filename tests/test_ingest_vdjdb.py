@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
-from imgt_app.file_ingest import parse_vdjdb_tsv
+from tcr_explorer.file_ingest import parse_vdjdb_tsv
 
 SAMPLE_TSV = (
     "cdr3\tv_segm\tj_segm\tspecies\tmhc_a\tmhc_b\tmhc_class\tantigen_epitope\tantigen_gene\tantigen_species\tscore\n"
@@ -76,9 +76,9 @@ class TestIngestVdjdbEndpoint:
         import os
         os.environ.setdefault("DATABASE_PATH", str(tmp_path / "test.db"))
         # Re-import to pick up temp db path
-        from imgt_app.config import settings
+        from tcr_explorer.config import settings
         settings.database_path = str(tmp_path / "test.db")
-        from imgt_app.api import app, index
+        from tcr_explorer.api import app, index
         index.db_path = settings.database_path
         index._init_db()
         return TestClient(app)

@@ -1,13 +1,13 @@
 from fastapi.testclient import TestClient
 
-from imgt_app.api import app
+from tcr_explorer.api import app
 
 client = TestClient(app)
 
 
 def test_similar_endpoint_uses_tiny_index(monkeypatch):
-    import imgt_app.api as api  # noqa: F401
-    import imgt_app.similarity as similarity
+    import tcr_explorer.api as api  # noqa: F401
+    import tcr_explorer.similarity as similarity
 
     # force the tiny fixture + BLOSUM fallback via the engine's default; patch index path
     monkeypatch.setenv("UNITCR_INDEX_PATH", "tests/fixtures/unitcr_tiny.parquet")

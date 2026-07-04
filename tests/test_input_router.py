@@ -1,5 +1,5 @@
 # tests/test_input_router.py
-from imgt_app.input_router import route
+from tcr_explorer.input_router import route
 
 def test_override_wins():
     r = route("ACGTACGT", input_type="raw_aa")

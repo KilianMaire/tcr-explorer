@@ -41,7 +41,7 @@ format: ## Auto-format code (ruff)
 # ──────────────────────────── Serving ──────────────────────────
 
 serve: ## Start main API server (port 8000)
-	PYTHONPATH=src:. uvicorn imgt_app.api:app --host 0.0.0.0 --port 8000 --reload
+	PYTHONPATH=src:. uvicorn tcr_explorer.api:app --host 0.0.0.0 --port 8000 --reload
 
 serve-all: ## Start all services with docker-compose
 	docker-compose up -d

@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
-name = "imgt-api"
+name = "tcr-explorer"
 version = "1.0.0"
 description = "Distributed API for IMGT, VDJdb, IEDB, and IPD-MHC search"
 requires-python = ">=3.10"

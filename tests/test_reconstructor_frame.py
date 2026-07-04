@@ -1,4 +1,4 @@
-from imgt_app.reconstructor import reconstruct_tcr
+from tcr_explorer.reconstructor import reconstruct_tcr
 
 
 def test_reconstruction_is_in_frame_and_contains_cdr3():
@@ -39,7 +39,7 @@ def test_no_spurious_residue_at_cdr3_j_junction():
 def test_composition_pieces_are_in_frame():
     # The composition germline pieces must translate cleanly (no stop codons),
     # not from the raw region nt which are not frame 0.
-    from imgt_app.records import build_record
+    from tcr_explorer.records import build_record
     row = dict(source="vdjdb", source_record_id="x", pairing_key="p", external_url="u",
                chain="beta", species="human", cdr3_aa="CASSLGTEAFF",
                v_gene="TRBV4-1", j_gene="TRBJ1-1")

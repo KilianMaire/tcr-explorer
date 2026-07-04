@@ -67,7 +67,7 @@ def server():
     if records_idx.exists():
         env["RECORDS_INDEX_PATH"] = str(records_idx)
     proc = subprocess.Popen(
-        [str(_ROOT / ".venv" / "bin" / "uvicorn"), "imgt_app.api:app",
+        [str(_ROOT / ".venv" / "bin" / "uvicorn"), "tcr_explorer.api:app",
          "--port", str(port), "--host", "127.0.0.1"],
         cwd=str(_ROOT), env=env,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -299,7 +299,7 @@ def test_ui_assign_panel_identifies_full_chain_with_blank_overrides(server):
     """Pasting a full chain with V and J left blank routes to
     POST /v1/tcr/assign (not /reconstruct): the panel reports the assigned V
     allele, the extracted CDR3, and a per-region identity row."""
-    from imgt_app.reconstructor import reconstruct_tcr
+    from tcr_explorer.reconstructor import reconstruct_tcr
 
     full_chain_aa = reconstruct_tcr(
         "TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse"

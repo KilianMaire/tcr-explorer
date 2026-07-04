@@ -11,13 +11,13 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def client():
     with patch.dict("os.environ", {"TEMPO_ENABLE": "true", "BATMAN_ENABLE": "false"}):
-        from imgt_app.api import app
+        from tcr_explorer.api import app
         yield TestClient(app)
 
 
 class TestConfig:
     def test_tempo_config_defaults(self):
-        from imgt_app.config import Settings
+        from tcr_explorer.config import Settings
         s = Settings()
         assert hasattr(s, "tempo_server_url")
         assert hasattr(s, "tempo_enable")
@@ -26,14 +26,14 @@ class TestConfig:
 
 class TestModels:
     def test_gene_record_has_tempo_fields(self):
-        from imgt_app.models import GeneRecord
+        from tcr_explorer.models import GeneRecord
         rec = GeneRecord(source="vdjdb", gene_name="test", sequence="CASS")
         assert hasattr(rec, "tempo_score")
         assert hasattr(rec, "tempo_rank")
 
 
 class TestCrossReactivityEndpoint:
-    @patch("imgt_app.api.tempo_client")
+    @patch("tcr_explorer.api.tempo_client")
     def test_predict_crossreactivity(self, mock_tempo, client):
         mock_tempo.post_crossreact = AsyncMock(return_value={
             "results": [
@@ -62,9 +62,9 @@ class TestCrossReactivityEndpoint:
     def test_predict_crossreactivity_with_tempo_disabled(self):
         with patch.dict("os.environ", {"TEMPO_ENABLE": "false", "BATMAN_ENABLE": "false"}):
             from importlib import reload
-            import imgt_app.config
-            reload(imgt_app.config)
-            from imgt_app.api import app
+            import tcr_explorer.config
+            reload(tcr_explorer.config)
+            from tcr_explorer.api import app
             c = TestClient(app)
             payload = {
                 "reference_peptide": "LLWNGPMAV",

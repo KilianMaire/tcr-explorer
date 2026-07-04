@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from imgt_app import records as R
-from imgt_app.api import app
-from imgt_app.records_build import SCHEMA_COLUMNS
+from tcr_explorer import records as R
+from tcr_explorer.api import app
+from tcr_explorer.records_build import SCHEMA_COLUMNS
 
 client = TestClient(app)
 

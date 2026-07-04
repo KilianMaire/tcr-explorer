@@ -1,5 +1,5 @@
-from imgt_app.dossier_models import DossierRequest, SimilarRequest
-from imgt_app.models import SearchRequest
+from tcr_explorer.dossier_models import DossierRequest, SimilarRequest
+from tcr_explorer.models import SearchRequest
 
 
 def test_dossier_request_query_is_described():

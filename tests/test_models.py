@@ -10,7 +10,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 from pydantic import ValidationError
 
-from imgt_app.models import (
+from tcr_explorer.models import (
     GeneRecord,
     IEDBHit,        # ← add this
     SearchRequest,

@@ -4,7 +4,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 import requests
 
-from imgt_app.file_ingest import parse_vdjdb_tsv
+from tcr_explorer.file_ingest import parse_vdjdb_tsv
 
 TSV = (
     "cdr3\tv_segm\tj_segm\tspecies\tmhc_a\tmhc_b\tmhc_class"

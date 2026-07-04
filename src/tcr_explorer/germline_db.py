@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 
-from imgt_app import d_regions
-from imgt_app.reconstructor import _j_frame_and_fw, _load_allele_map, _translate
+from tcr_explorer import d_regions
+from tcr_explorer.reconstructor import _j_frame_and_fw, _load_allele_map, _translate
 
 _MARKERS: dict[str, tuple[str, ...]] = {
     "V": ("VARIABLE", "V-REGION"),

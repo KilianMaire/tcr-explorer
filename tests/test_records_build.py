@@ -1,6 +1,6 @@
 from pathlib import Path
 import pandas as pd
-from imgt_app import records_build as rb
+from tcr_explorer import records_build as rb
 
 FIX = Path(__file__).parent / "fixtures" / "records"
 

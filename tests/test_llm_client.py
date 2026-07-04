@@ -1,4 +1,4 @@
-from imgt_app import llm_client
+from tcr_explorer import llm_client
 
 
 def test_disabled_returns_none(monkeypatch):

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
-from imgt_app.cdr_enricher import (
+from tcr_explorer.cdr_enricher import (
     _translate,
     _gene_to_chain,
     get_cdr1_cdr2,
@@ -103,9 +103,9 @@ class TestGetCdr1Cdr2MissingData:
 
     def test_missing_stitchr_dir_returns_nones(self):
         # Patch _stitchr_data_dir to return None (simulates stitchr not installed)
-        with patch("imgt_app.cdr_enricher._stitchr_data_dir", return_value=None):
+        with patch("tcr_explorer.cdr_enricher._stitchr_data_dir", return_value=None):
             # Clear cache so mock takes effect
-            from imgt_app.cdr_enricher import _cached_v_map
+            from tcr_explorer.cdr_enricher import _cached_v_map
             _cached_v_map.cache_clear()
             result = get_cdr1_cdr2("TRBV19", "human")
             _cached_v_map.cache_clear()
@@ -126,41 +126,41 @@ class TestGetCdr1Cdr2WithMockData:
 
     def test_cdr1_extracted_as_met_string(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         expected_len = _CDR1_END - _CDR1_START + 1  # 12 aa
         assert result["cdr1_aa"] == "M" * expected_len
 
     def test_cdr2_extracted_as_met_string(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         expected_len = _CDR2_END - _CDR2_START + 1  # 10 aa
         assert result["cdr2_aa"] == "M" * expected_len
 
     def test_cdr1_nt_length(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         expected_nt_len = (_CDR1_END - _CDR1_START + 1) * 3  # 36 nt
         assert len(result["cdr1_nt"]) == expected_nt_len
 
     def test_cdr2_nt_length(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         expected_nt_len = (_CDR2_END - _CDR2_START + 1) * 3  # 30 nt
         assert len(result["cdr2_nt"]) == expected_nt_len
 
     def test_allele_set_to_star01(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         assert result["allele"] == "TRBV1*01"
 
     def test_allele_suffix_stripped_before_lookup(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1*02", "human")
         # Should find TRBV1 by stripping *02
         assert result["cdr1_aa"] is not None
@@ -173,7 +173,7 @@ class TestGetCdr1Cdr2WithMockData:
         stop_pos = (_CDR1_END - 1) * 3  # 0-indexed start of codon at aa pos 38
         nt[stop_pos : stop_pos + 3] = list("TAA")
         mock_map = {"TRBV1": "".join(nt)}
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         assert result["cdr1_aa"] is not None
         assert not result["cdr1_aa"].endswith("*")
@@ -181,12 +181,12 @@ class TestGetCdr1Cdr2WithMockData:
     def test_species_human_mapped(self):
         """human species maps to HUMAN stitchr dir; no crash."""
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "human")
         assert isinstance(result, dict)
 
     def test_species_mouse_mapped(self):
         mock_map = self._make_mock_v_map()
-        with patch("imgt_app.cdr_enricher._cached_v_map", return_value=mock_map):
+        with patch("tcr_explorer.cdr_enricher._cached_v_map", return_value=mock_map):
             result = get_cdr1_cdr2("TRBV1", "mouse")
         assert isinstance(result, dict)

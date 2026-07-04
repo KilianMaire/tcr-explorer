@@ -1,7 +1,7 @@
 import pytest
-from imgt_app.cdr_enricher import _stitchr_data_dir
-from imgt_app.dossier_models import DossierRequest
-from imgt_app.dossier import build_dossier
+from tcr_explorer.cdr_enricher import _stitchr_data_dir
+from tcr_explorer.dossier_models import DossierRequest
+from tcr_explorer.dossier import build_dossier
 
 
 def test_gene_name_path_populates_cdr_and_provenance():

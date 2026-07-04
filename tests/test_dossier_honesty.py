@@ -1,5 +1,5 @@
-from imgt_app.dossier_models import DossierRequest
-from imgt_app.dossier import build_dossier
+from tcr_explorer.dossier_models import DossierRequest
+from tcr_explorer.dossier import build_dossier
 
 
 def test_every_populated_block_has_provenance():

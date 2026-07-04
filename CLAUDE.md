@@ -1,4 +1,4 @@
-# imgt-api
+# TCR Explorer
 
 Distributed API for searching IMGT (HLA, TCR), VDJdb, IEDB, and IPD-MHC data.
 
@@ -7,12 +7,12 @@ Distributed API for searching IMGT (HLA, TCR), VDJdb, IEDB, and IPD-MHC data.
 ```bash
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-PYTHONPATH=src uvicorn imgt_app.api:app --port 8000 --reload
+PYTHONPATH=src uvicorn tcr_explorer.api:app --port 8000 --reload
 ```
 
 ## Architecture
 
-- `src/imgt_app/api.py` — Main FastAPI gateway (port 8000)
+- `src/tcr_explorer/api.py` — Main FastAPI gateway (port 8000)
 - `servers/hla_server.py` — EBI IMGT/HLA proxy (port 8101)
 - `servers/tcr_server.py` — NCBI Entrez TCR proxy (port 8102)
 - `servers/vdjdb_server.py` — VDJdb integration (port 8103)

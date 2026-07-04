@@ -89,11 +89,11 @@ services:
       retries: 3
 
   # ---------- Main API gateway (port 8000) -----------------------------------
-  imgt-api:
+  tcr-explorer:
     <<: *base
     command: >
       sh -c "pip install -q -r requirements.txt &&
-             PYTHONPATH=src uvicorn imgt_app.api:app --host 0.0.0.0 --port 8000"
+             PYTHONPATH=src uvicorn tcr_explorer.api:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     environment:

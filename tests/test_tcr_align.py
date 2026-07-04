@@ -1,6 +1,6 @@
 import pytest
-from imgt_app.germline_db import germline_alleles
-from imgt_app.tcr_align import detect_alphabet, best_alleles, detect_chain
+from tcr_explorer.germline_db import germline_alleles
+from tcr_explorer.tcr_align import detect_alphabet, best_alleles, detect_chain
 
 
 def test_detect_alphabet():
@@ -27,7 +27,7 @@ def test_point_mutation_keeps_call_below_100():
 
 def test_ties_are_all_reported():
     # two synthetic alleles identical over the query span both survive
-    from imgt_app.germline_db import Allele
+    from tcr_explorer.germline_db import Allele
     q = "ACGTACGTACGTACGTACGT"
     alleles = [
         Allele("FAKEV1*01", q + "AAA", ""),
@@ -45,8 +45,8 @@ def test_chain_detection_does_not_misclassify_alpha_as_beta():
 
 def test_full_chain_roundtrip_recovers_v_j_and_cdr3():
     # a full reconstructed mouse beta chain from the oracle fixture (row 2)
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")
     chain_aa = built["full_chain_aa"]
     a = assign(chain_aa, species="mouse")
@@ -58,7 +58,7 @@ def test_full_chain_roundtrip_recovers_v_j_and_cdr3():
 
 
 def test_bare_cdr3_refuses_v_and_attaches_db_inference():
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.tcr_align import assign
     a = assign("CASSLGTEAFF", species="human")
     assert a.v_determinable is False
     assert a.v_call is None and a.v_reason
@@ -68,8 +68,8 @@ def test_bare_cdr3_refuses_v_and_attaches_db_inference():
 
 
 def test_nucleotide_input_roundtrip():
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")
     a = assign(built["full_nt"], species="mouse")
     assert a.input_kind == "nucleotide"
@@ -77,8 +77,8 @@ def test_nucleotide_input_roundtrip():
 
 
 def test_point_mutation_shows_in_region_breakdown():
-    from imgt_app.germline_db import germline_alleles
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.germline_db import germline_alleles
+    from tcr_explorer.tcr_align import assign
     v = next(x for x in germline_alleles("human", "TRB", "V") if x.name.startswith("TRBV19"))
     # mutate a CDR1 position (IMGT aa 27..38 -> nt 78..114) and assign
     nt = v.nt
@@ -95,8 +95,8 @@ def test_partial_input_reading_frame_is_derived_from_target_offset():
     # reading frame is (qstart - tstart) % 3, not qstart % 3; the old code used
     # qstart % 3 and translated the fragment out of frame, so the CDR3 could not
     # be mapped. Dropping the first 4 nt shifts the natural frame by 2.
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
     partial = built["full_nt"][4:]  # tstart == 4 -> tstart % 3 == 1
     a = assign(partial, species="human", chain="TRB")
@@ -114,8 +114,8 @@ def test_uncovered_regions_are_omitted_not_zeroed():
     # A fragment starting inside FR2 leaves FR1 and CDR1 with no covered
     # positions. They must be omitted from the regions dict, not reported as
     # 0.0 (which would read as fully divergent rather than not covered).
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
     frag = built["full_nt"][120:]  # begins past FR1/CDR1
     a = assign(frag, species="human", chain="TRB")
@@ -134,7 +134,7 @@ def test_v_only_input_emits_no_confident_constant_call():
     # gated out (short remainder) or, when emitted, it carries the low constant
     # identity warning. This asserts the honesty invariant (no silent confident
     # spurious call), which fails under the old code and passes after the fix.
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.tcr_align import assign
     v = germline_alleles("human", "TRB", "V")[0]
     a = assign(v.aa, chain="TRB", species="human")
     assert a.constant_call is None or "low constant identity" in a.warnings
@@ -146,8 +146,8 @@ def test_full_chain_still_yields_a_trbc_constant_call():
     # the mouse TRBC germline translated in its true reading frame, the call
     # is now a clean high-identity match, not a low-identity one propped up by
     # a tiny stop-free island.
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")
     a = assign(built["full_chain_aa"], species="mouse")
     assert a.constant_call and any(n.startswith("TRBC") for n in a.constant_call["alleles"])
@@ -159,8 +159,8 @@ def test_clean_full_chain_constant_is_not_spuriously_warned():
     # A full-chain constant call that aligns at high identity carries no low
     # constant identity warning (the warning fires only on genuinely weak
     # evidence). The human TRBC reference resolves at identity 1.0 here.
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
     a = assign(built["full_chain_aa"], species="human")
     assert a.constant_call and any(n.startswith("TRBC") for n in a.constant_call["alleles"])
@@ -170,7 +170,7 @@ def test_clean_full_chain_constant_is_not_spuriously_warned():
 def test_absent_d_for_alpha_is_explained_when_requested():
     # Alpha has no D segment. When the caller asks for D and none is available,
     # the result must say why rather than silently returning d_call None.
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.tcr_align import assign
     v = germline_alleles("human", "TRA", "V")[0]
     a = assign(v.aa, chain="TRA", species="human", want_d=True)
     assert a.d_call is None
@@ -181,8 +181,8 @@ def test_d_call_is_always_low_confidence_on_human_beta():
     # A human beta nucleotide chain with want_d must either return a D call
     # carrying the always-on low_confidence flag, or, when no D germline is
     # vendored, warn honestly about the absence. Never a confident D guess.
-    from imgt_app.reconstructor import reconstruct_tcr
-    from imgt_app.tcr_align import assign
+    from tcr_explorer.reconstructor import reconstruct_tcr
+    from tcr_explorer.tcr_align import assign
     built = reconstruct_tcr("TRBV19", "TRBJ2-7", "CASSIRSSYEQYF", "human")
     a = assign(built["full_nt"], species="human", chain="TRB", want_d=True)
     if a.d_call is not None:

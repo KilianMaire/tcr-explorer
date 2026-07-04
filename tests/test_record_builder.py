@@ -1,4 +1,4 @@
-from imgt_app import records
+from tcr_explorer import records
 
 
 def _row(**kw):

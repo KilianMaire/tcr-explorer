@@ -6,7 +6,7 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
-from imgt_app.nl_query import heuristic_parse
+from tcr_explorer.nl_query import heuristic_parse
 
 
 class TestSourceDetection:
@@ -189,7 +189,7 @@ class TestAntigenEpitopeExtraction:
 
 class TestReturnType:
     def test_returns_parse_query_result(self):
-        from imgt_app.models import ParseQueryResult
+        from tcr_explorer.models import ParseQueryResult
         result = heuristic_parse("HLA-A sequences")
         assert isinstance(result, ParseQueryResult)
 

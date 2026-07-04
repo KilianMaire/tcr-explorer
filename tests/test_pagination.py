@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from imgt_app.models import GeneRecord, SearchRequest, SearchResponse
+from tcr_explorer.models import GeneRecord, SearchRequest, SearchResponse
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ def test_search_response_pagination_fields_set():
 
 def test_merge_results_no_offset():
     """With offset=0, result should be the first `limit` records."""
-    from imgt_app.api import _merge_results
+    from tcr_explorer.api import _merge_results
 
     local = SearchResponse(total=3, records=[_rec("A"), _rec("B"), _rec("C")])
     remote = SearchResponse(total=2, records=[_rec("D"), _rec("E")])
@@ -81,7 +81,7 @@ def test_merge_results_no_offset():
 
 def test_merge_results_with_offset():
     """Offset skips the first N combined records."""
-    from imgt_app.api import _merge_results
+    from tcr_explorer.api import _merge_results
 
     local = SearchResponse(total=3, records=[_rec("A"), _rec("B"), _rec("C")])
     remote = SearchResponse(total=2, records=[_rec("D"), _rec("E")])
@@ -97,7 +97,7 @@ def test_merge_results_with_offset():
 
 def test_merge_results_offset_beyond_available():
     """Offset larger than available records returns empty list."""
-    from imgt_app.api import _merge_results
+    from tcr_explorer.api import _merge_results
 
     local = SearchResponse(total=2, records=[_rec("A"), _rec("B")])
     remote = SearchResponse(total=0, records=[])
@@ -114,7 +114,7 @@ def test_merge_results_offset_beyond_available():
 
 def test_search_index_fetch_limit_is_inflated():
     """SQLite search fetches limit+offset rows so merge has enough to slice."""
-    from imgt_app.search_index import SearchIndex
+    from tcr_explorer.search_index import SearchIndex
 
     with tempfile.TemporaryDirectory() as tmpdir:
         idx = SearchIndex(f"{tmpdir}/test.db")

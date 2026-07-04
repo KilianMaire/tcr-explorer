@@ -1,7 +1,7 @@
-"""Streamlit frontend for the IMGT Search Engine.
+"""Streamlit frontend for the TCR Explorer.
 
 Run with:
-    streamlit run src/imgt_app/frontend.py
+    streamlit run src/tcr_explorer/frontend.py
 
 Calls the main API at http://127.0.0.1:8000 (override with IMGT_API_URL env var).
 """
@@ -193,11 +193,11 @@ def _page_cdr_predict() -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="IMGT Search Engine",
+        page_title="TCR Explorer",
         page_icon=":dna:",
         layout="wide",
     )
-    st.title("IMGT Search Engine")
+    st.title("TCR Explorer")
     st.caption(
         "Search HLA (IMGT/HLA via EBI), TCR (NCBI Entrez), VDJdb, and IEDB "
         "immune receptor / epitope databases."

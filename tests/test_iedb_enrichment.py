@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from imgt_app.models import GeneRecord, IEDBHit, SearchResponse
+from tcr_explorer.models import GeneRecord, IEDBHit, SearchResponse
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ def _iedb_response(epitopes: list[str]) -> SearchResponse:
 # Import target
 # ---------------------------------------------------------------------------
 
-from imgt_app.api import _enrich_with_iedb  # noqa: E402
+from tcr_explorer.api import _enrich_with_iedb  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

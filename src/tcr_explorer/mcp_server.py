@@ -2,7 +2,7 @@
 
 Each tool is a thin wrapper over the same pure function the REST API uses, so
 there is no logic divergence between REST and MCP. Run with:
-    python -m imgt_app.mcp_server
+    python -m tcr_explorer.mcp_server
 """
 from __future__ import annotations
 import dataclasses
@@ -17,7 +17,7 @@ from .ask import answer as answer_fn
 from .records import retrieve_records as retrieve_records_fn
 from .tcr_align import assign as assign_fn
 
-mcp = FastMCP("imgt-tcr")
+mcp = FastMCP("tcr-explorer")
 
 # All tools are read-only lookups: they mutate nothing, are safe to retry, and
 # reach external sources (NCBI/IEDB) for the dossier, so openWorldHint is true.

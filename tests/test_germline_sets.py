@@ -1,7 +1,7 @@
 import pytest
-from imgt_app.cdr_enricher import _stitchr_data_dir
-from imgt_app.dossier_models import AlignRequest
-from imgt_app.germline_sets import load_segment_map, resolve_sequences
+from tcr_explorer.cdr_enricher import _stitchr_data_dir
+from tcr_explorer.dossier_models import AlignRequest
+from tcr_explorer.germline_sets import load_segment_map, resolve_sequences
 
 pytestmark = pytest.mark.skipif(_stitchr_data_dir() is None, reason="stitchr germline not installed")
 

@@ -38,7 +38,7 @@ Each service runs independently. Open five terminals from the project root:
 | 2 | `uvicorn servers.tcr_server:app --port 8102 --reload` | 8102 |
 | 3 | `uvicorn servers.vdjdb_server:app --port 8103 --reload` | 8103 |
 | 4 | `uvicorn servers.iedb_server:app --port 8104 --reload` | 8104 |
-| 5 | `PYTHONPATH=src uvicorn imgt_app.api:app --port 8000 --reload` | 8000 |
+| 5 | `PYTHONPATH=src uvicorn tcr_explorer.api:app --port 8000 --reload` | 8000 |
 
 Start the tool servers (8101–8104) before the main API (8000).
 
@@ -178,7 +178,7 @@ curl -s -X POST http://localhost:8000/query/nl \
 ## Streamlit UI
 
 ```bash
-streamlit run src/imgt_app/frontend.py
+streamlit run src/tcr_explorer/frontend.py
 ```
 
 Opens at <http://localhost:8501> with two pages:
@@ -222,7 +222,7 @@ PYTHONPATH=src pytest tests/ -v
 ```
                         ┌─────────────────────┐
                         │  Main API  :8000     │
-                        │  src/imgt_app/api.py │
+                        │  src/tcr_explorer/api.py │
                         └──────────┬──────────┘
               ┌───────────┬────────┴────────┬───────────┐
               ▼           ▼                 ▼           ▼

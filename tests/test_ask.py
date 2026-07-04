@@ -1,5 +1,5 @@
-from imgt_app.dossier_models import AskRequest
-from imgt_app import ask
+from tcr_explorer.dossier_models import AskRequest
+from tcr_explorer import ask
 
 
 def test_llm_malformed_dossier_params_fall_back_to_heuristic(monkeypatch):
@@ -70,7 +70,7 @@ def test_heuristic_search_uses_query_text(monkeypatch):
 
     def fake_run_search(req):
         captured["req"] = req
-        from imgt_app.models import SearchResponse
+        from tcr_explorer.models import SearchResponse
 
         return SearchResponse(total=0, records=[])
 
@@ -117,7 +117,7 @@ def test_llm_plan_used_when_available(monkeypatch):
         ask,
         "_run_search_sync",
         lambda req: __import__(
-            "imgt_app.models", fromlist=["SearchResponse"]
+            "tcr_explorer.models", fromlist=["SearchResponse"]
         ).SearchResponse(total=0, records=[]),
     )
     resp = ask.answer(AskRequest(query="anything"))

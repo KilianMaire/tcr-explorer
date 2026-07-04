@@ -7,7 +7,7 @@ CDR positions follow IMGT numbering (1-indexed, inclusive):
 
 Usage
 -----
-    from imgt_app.cdr_enricher import get_cdr1_cdr2
+    from tcr_explorer.cdr_enricher import get_cdr1_cdr2
     result = get_cdr1_cdr2("TRBV19", "HUMAN")
     # {"cdr1_aa": "LNHDAMYWYRQD", "cdr2_aa": "QKGDIAEGYS", "allele": "TRBV19*01"}
 """

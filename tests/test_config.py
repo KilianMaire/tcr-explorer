@@ -4,7 +4,7 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 import pytest
-from imgt_app.config import Settings
+from tcr_explorer.config import Settings
 
 
 class TestBatmanSettings:
@@ -14,7 +14,7 @@ class TestBatmanSettings:
 
     def test_batman_server_url_from_env(self, monkeypatch):
         monkeypatch.setenv("BATMAN_SERVER_URL", "http://batman:8105")
-        import importlib, imgt_app.config as cfg
+        import importlib, tcr_explorer.config as cfg
         importlib.reload(cfg)
         s = cfg.Settings()
         assert s.batman_server_url == "http://batman:8105"
@@ -29,7 +29,7 @@ class TestBatmanSettings:
 
     def test_batman_enable_from_env(self, monkeypatch):
         monkeypatch.setenv("BATMAN_ENABLE", "false")
-        import importlib, imgt_app.config as cfg
+        import importlib, tcr_explorer.config as cfg
         importlib.reload(cfg)
         s = cfg.Settings()
         assert s.batman_enable is False

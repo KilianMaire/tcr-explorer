@@ -1,4 +1,4 @@
-from imgt_app.query_nl import parse_query
+from tcr_explorer.query_nl import parse_query
 
 
 def test_parses_species_words_en_and_fr():

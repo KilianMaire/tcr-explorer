@@ -1,4 +1,4 @@
-from imgt_app import mcp_server
+from tcr_explorer import mcp_server
 
 def test_get_tcr_dossier_tool_returns_dossier_dict():
     out = mcp_server.get_tcr_dossier("TRBV20-1", species="human")
@@ -13,7 +13,7 @@ def test_ask_tcr_tool_returns_routed_dict():
 
 def test_find_similar_tool_returns_engine(monkeypatch):
     # avoid depending on the full vendored index in unit tests
-    import imgt_app.mcp_server as m
+    import tcr_explorer.mcp_server as m
     monkeypatch.setattr(m, "find_similar_tcrs_fn",
         lambda *a, **k: ([], "blosum_cdr3", 0, []))
     out = mcp_server.find_similar_tcrs("CASSLGTEAFF", "TRBV20-1", "TRBJ1-1")

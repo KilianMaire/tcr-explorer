@@ -15,7 +15,7 @@ if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
 try:
-    from imgt_app.cdr_enricher import get_cdr1_cdr2
+    from tcr_explorer.cdr_enricher import get_cdr1_cdr2
     _CDR_AVAILABLE = True
 except Exception:
     _CDR_AVAILABLE = False

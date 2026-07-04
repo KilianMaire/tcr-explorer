@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from imgt_app.reconstructor import reconstruct_tcr
+from tcr_explorer.reconstructor import reconstruct_tcr
 
 FIX = Path(__file__).parent / "fixtures" / "reconstruction" / "mouse_paired_tcrs.tsv"
 TRBC = "EDLRNVTPP"
@@ -54,7 +54,7 @@ def test_alpha_full_chain_constant_exact_diffs_confined_to_variable():
     # alpha full chains are length-exact; the vendored constant is reproduced
     # exactly, so any residual diffs are confined to the variable domain, where
     # they are germline allele polymorphism (not inferable from V+J+CDR3).
-    from imgt_app.constant_regions import constant_aa
+    from tcr_explorer.constant_regions import constant_aa
     tra_const = constant_aa("alpha", "mouse")
     for row in _rows():
         r = reconstruct_tcr(row[3], row[4], row[5], "mouse")

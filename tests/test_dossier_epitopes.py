@@ -1,7 +1,7 @@
-from imgt_app.dossier_models import DossierRequest
-from imgt_app.dossier import build_dossier
-from imgt_app.models import IEDBHit
-import imgt_app.dossier_epitopes as dossier_epitopes
+from tcr_explorer.dossier_models import DossierRequest
+from tcr_explorer.dossier import build_dossier
+from tcr_explorer.models import IEDBHit
+import tcr_explorer.dossier_epitopes as dossier_epitopes
 
 
 def test_epitopes_flow_into_dossier():

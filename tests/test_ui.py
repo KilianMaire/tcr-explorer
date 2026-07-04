@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from imgt_app.api import app
+from tcr_explorer.api import app
 client = TestClient(app)
 
 def test_ui_served():

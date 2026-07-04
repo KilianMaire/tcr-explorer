@@ -1,5 +1,5 @@
-from imgt_app import annotator
-from imgt_app.annotator import annotate
+from tcr_explorer import annotator
+from tcr_explorer.annotator import annotate
 
 
 def test_absent_igblast_falls_back_to_kmer(monkeypatch):

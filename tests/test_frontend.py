@@ -1,4 +1,4 @@
-"""Tests for src/imgt_app/frontend.py — data-shaping logic only (no UI rendering)."""
+"""Tests for src/tcr_explorer/frontend.py — data-shaping logic only (no UI rendering)."""
 from __future__ import annotations
 
 import sys
@@ -37,7 +37,7 @@ def _stub_streamlit() -> None:
 
 _stub_streamlit()
 
-from imgt_app.frontend import _records_to_df  # noqa: E402  (must come after stub)
+from tcr_explorer.frontend import _records_to_df  # noqa: E402  (must come after stub)
 
 
 # ---------------------------------------------------------------------------

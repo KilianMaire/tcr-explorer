@@ -5,8 +5,8 @@ with the beta CH1 junction residue E restored (UniProt P01850 omits it, but
 the oracle-validated mouse entry P01852 carries it). They are not oracle
 validated against a human ground-truth set, so their provenance string says so.
 """
-from imgt_app.constant_regions import constant_aa, constant_source
-from imgt_app.reconstructor import reconstruct_tcr
+from tcr_explorer.constant_regions import constant_aa, constant_source
+from tcr_explorer.reconstructor import reconstruct_tcr
 
 # UniProt P01848 (TRAC_HUMAN), verbatim.
 HUMAN_TRA = (

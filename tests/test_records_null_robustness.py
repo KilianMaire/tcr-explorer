@@ -11,10 +11,10 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from imgt_app import records as R
-from imgt_app import similarity as S
-from imgt_app.records_build import SCHEMA_COLUMNS
-from imgt_app.dossier_models import RecordsRequest
+from tcr_explorer import records as R
+from tcr_explorer import similarity as S
+from tcr_explorer.records_build import SCHEMA_COLUMNS
+from tcr_explorer.dossier_models import RecordsRequest
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_retrieve_records_id_lookup_tolerates_null_species(null_idx):
 
 def test_api_records_endpoint_returns_200_over_null_species(null_idx, monkeypatch):
     monkeypatch.setenv("RECORDS_INDEX_PATH", null_idx)
-    from imgt_app.api import app
+    from tcr_explorer.api import app
 
     client = TestClient(app)
     resp = client.post("/v1/tcr/records", json={"cdr3_aa": "ASGDTGGYEQY"})
@@ -81,7 +81,7 @@ def test_api_records_endpoint_returns_200_over_null_species(null_idx, monkeypatc
 
 def test_api_similar_endpoint_returns_200_over_null_genes(null_idx, monkeypatch):
     monkeypatch.setenv("UNITCR_INDEX_PATH", null_idx)
-    from imgt_app.api import app
+    from tcr_explorer.api import app
 
     client = TestClient(app)
     resp = client.post(

@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
-from imgt_app.api import app
-from imgt_app import dossier_epitopes
-from imgt_app.models import GeneRecord, IEDBHit, SearchResponse
+from tcr_explorer.api import app
+from tcr_explorer import dossier_epitopes
+from tcr_explorer.models import GeneRecord, IEDBHit, SearchResponse
 
 client = TestClient(app)
 

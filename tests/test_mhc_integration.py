@@ -42,7 +42,7 @@ _EMPTY_RESP = {"total": 0, "records": [], "limit": 50, "offset": 0}
 
 @pytest.fixture()
 def api_client():
-    from imgt_app.api import app
+    from tcr_explorer.api import app
     return TestClient(app)
 
 
@@ -52,7 +52,7 @@ def api_client():
 
 def test_mhc_source_routes_to_mhc_client(api_client):
     """source='mhc' should route to mhc_client.search."""
-    with patch("imgt_app.api.mhc_client") as mock_mhc:
+    with patch("tcr_explorer.api.mhc_client") as mock_mhc:
         mock_mhc.search = AsyncMock(return_value=_MHC_RESP)
         resp = api_client.post("/search", json={
             "source": "mhc",
@@ -72,8 +72,8 @@ def test_mhc_source_routes_to_mhc_client(api_client):
 def test_mhc_source_not_called_for_hla(api_client):
     """source='hla' should NOT call mhc_client."""
     with (
-        patch("imgt_app.api.hla_client") as mock_hla,
-        patch("imgt_app.api.mhc_client") as mock_mhc,
+        patch("tcr_explorer.api.hla_client") as mock_hla,
+        patch("tcr_explorer.api.mhc_client") as mock_mhc,
     ):
         mock_hla.search = AsyncMock(return_value=_EMPTY_RESP)
         mock_mhc.search = AsyncMock(return_value=_EMPTY_RESP)
@@ -86,9 +86,9 @@ def test_mhc_source_not_called_for_hla(api_client):
 def test_mhc_source_not_called_for_vdjdb(api_client):
     """source='vdjdb' should NOT call mhc_client."""
     with (
-        patch("imgt_app.api.vdjdb_client") as mock_vdjdb,
-        patch("imgt_app.api.iedb_client") as mock_iedb,
-        patch("imgt_app.api.mhc_client") as mock_mhc,
+        patch("tcr_explorer.api.vdjdb_client") as mock_vdjdb,
+        patch("tcr_explorer.api.iedb_client") as mock_iedb,
+        patch("tcr_explorer.api.mhc_client") as mock_mhc,
     ):
         mock_vdjdb.search = AsyncMock(return_value=_EMPTY_RESP)
         mock_iedb.search = AsyncMock(return_value=_EMPTY_RESP)
@@ -101,7 +101,7 @@ def test_mhc_source_not_called_for_vdjdb(api_client):
 
 def test_mhc_server_failure_raises(api_client):
     """If mhc_client raises, the exception propagates (uncaught for non-vdjdb sources)."""
-    with patch("imgt_app.api.mhc_client") as mock_mhc:
+    with patch("tcr_explorer.api.mhc_client") as mock_mhc:
         mock_mhc.search = AsyncMock(side_effect=Exception("MHC server down"))
         with pytest.raises(Exception, match="MHC server down"):
             api_client.post("/search", json={
@@ -112,6 +112,6 @@ def test_mhc_server_failure_raises(api_client):
 
 def test_mhc_source_accepted_in_request():
     """Pydantic should accept source='mhc' in SearchRequest."""
-    from imgt_app.models import SearchRequest
+    from tcr_explorer.models import SearchRequest
     req = SearchRequest(source="mhc", gene_name="Mamu-A1")
     assert req.source == "mhc"

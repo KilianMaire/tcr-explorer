@@ -53,7 +53,7 @@ _EMPTY_RESP = {"total": 0, "records": [], "limit": 50, "offset": 0}
 
 @pytest.fixture()
 def api_client():
-    from imgt_app.api import app
+    from tcr_explorer.api import app
     return TestClient(app)
 
 
@@ -62,12 +62,12 @@ def api_client():
 # ---------------------------------------------------------------------------
 
 def test_vdjdb_result_enriched_with_iedb_hits(api_client):
-    from imgt_app.models import SearchResponse
+    from tcr_explorer.models import SearchResponse
     _local_empty = SearchResponse(total=0, records=[], limit=50, offset=0)
     with (
-        patch("imgt_app.api.vdjdb_client") as mock_vdjdb,
-        patch("imgt_app.api.iedb_client") as mock_iedb,
-        patch("imgt_app.api.index") as mock_index,
+        patch("tcr_explorer.api.vdjdb_client") as mock_vdjdb,
+        patch("tcr_explorer.api.iedb_client") as mock_iedb,
+        patch("tcr_explorer.api.index") as mock_index,
     ):
         mock_vdjdb.search = AsyncMock(return_value=_VDJDB_RESP)
         mock_iedb.search  = AsyncMock(return_value=_IEDB_RESP)
@@ -89,12 +89,12 @@ def test_vdjdb_result_enriched_with_iedb_hits(api_client):
 
 
 def test_orphan_iedb_hit_creates_phantom(api_client):
-    from imgt_app.models import SearchResponse
+    from tcr_explorer.models import SearchResponse
     _local_empty = SearchResponse(total=0, records=[], limit=50, offset=0)
     with (
-        patch("imgt_app.api.vdjdb_client") as mock_vdjdb,
-        patch("imgt_app.api.iedb_client") as mock_iedb,
-        patch("imgt_app.api.index") as mock_index,
+        patch("tcr_explorer.api.vdjdb_client") as mock_vdjdb,
+        patch("tcr_explorer.api.iedb_client") as mock_iedb,
+        patch("tcr_explorer.api.index") as mock_index,
     ):
         mock_vdjdb.search = AsyncMock(return_value=_EMPTY_RESP)
         mock_iedb.search  = AsyncMock(return_value=_IEDB_RESP)
@@ -114,12 +114,12 @@ def test_orphan_iedb_hit_creates_phantom(api_client):
 
 def test_iedb_failure_returns_vdjdb_records_without_hits(api_client):
     """If IEDB is down, VDJdb records are returned as-is (no error raised)."""
-    from imgt_app.models import SearchResponse
+    from tcr_explorer.models import SearchResponse
     _local_empty = SearchResponse(total=0, records=[], limit=50, offset=0)
     with (
-        patch("imgt_app.api.vdjdb_client") as mock_vdjdb,
-        patch("imgt_app.api.iedb_client") as mock_iedb,
-        patch("imgt_app.api.index") as mock_index,
+        patch("tcr_explorer.api.vdjdb_client") as mock_vdjdb,
+        patch("tcr_explorer.api.iedb_client") as mock_iedb,
+        patch("tcr_explorer.api.index") as mock_index,
     ):
         mock_vdjdb.search = AsyncMock(return_value=_VDJDB_RESP)
         mock_iedb.search  = AsyncMock(side_effect=Exception("IEDB unreachable"))
@@ -137,8 +137,8 @@ def test_iedb_failure_returns_vdjdb_records_without_hits(api_client):
 def test_non_vdjdb_source_not_enriched(api_client):
     """Searching HLA does not trigger IEDB enrichment."""
     with (
-        patch("imgt_app.api.hla_client") as mock_hla,
-        patch("imgt_app.api.iedb_client") as mock_iedb,
+        patch("tcr_explorer.api.hla_client") as mock_hla,
+        patch("tcr_explorer.api.iedb_client") as mock_iedb,
     ):
         mock_hla.search = AsyncMock(return_value={
             "total": 1,
