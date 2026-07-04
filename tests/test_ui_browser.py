@@ -100,18 +100,17 @@ def _run(base):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{base}/ui")
-        # a gene query renders a real dossier
+        # a gene query routes to the records tool through the central query box
         page.fill("#q", "TRBV20-1")
         page.click("#f button")
         page.wait_for_function(
-            "document.querySelector('#out').innerText.includes('TRBV20-1')", timeout=8000)
+            "document.querySelector('#out').innerText.includes('understood as')", timeout=8000)
         result["gene"] = page.locator("#out").inner_text()
-        # a bare CDR3 is looked up against the known-TCR reference (similarity),
-        # not a dead-end germline annotation
+        # a bare CDR3 routes to both known records and a germline assignment
         page.fill("#q", "CASSLGTEAFF")
         page.click("#f button")
         page.wait_for_function(
-            "document.querySelector('#out').innerText.includes('intent')", timeout=8000)
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
         result["cdr3"] = page.locator("#out").inner_text()
         browser.close()
     return errors, result
@@ -120,11 +119,13 @@ def _run(base):
 def test_ui_has_no_console_errors_and_forms_work(server):
     errors, result = _run(server)
     assert errors == [], f"UI console errors: {errors}"
-    assert "chain: beta" in result["gene"] and "TRBV20-1" in result["gene"]
-    assert "intent: similar" in result["cdr3"], \
-        "a bare CDR3 should route to a similarity lookup, not germline annotation"
-    assert "Similar TCRs" in result["cdr3"], \
-        "the CDR3 lookup should render matching known TCRs"
+    assert "understood as: gene_name -> records" in result["gene"] \
+        or "understood as: allele -> records" in result["gene"]
+    assert "Exact records" in result["gene"] and "Near neighbours" in result["gene"]
+    assert "understood as: raw_aa -> records, assign" in result["cdr3"], \
+        "a bare CDR3 should route to both the records and the assign tools"
+    assert "Exact records" in result["cdr3"], \
+        "the CDR3 lookup should render the known-records card"
 
 
 def test_ui_align_form_renders_colored_aa_nt(server):
@@ -137,7 +138,7 @@ def test_ui_align_form_renders_colored_aa_nt(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
-        page.click("details.advanced summary")  # align panel is collapsed by default
+        page.click('[data-tool="align"]')  # the align form is hidden until its chip is clicked
         page.select_option("#a_sp", "mouse")
         page.fill("#a_chain", "TRB")
         page.select_option("#a_seg", "J")
@@ -238,12 +239,11 @@ def test_ui_reconstructed_card_contains_queried_cdr3_no_stop_codon(server):
         f"the reconstructed full_aa must contain no internal stop codon, got: {reconstructed_aa}"
 
 
-def test_ui_natural_language_mouse_query_hides_hla_until_toggled(server):
+def test_ui_natural_language_mouse_query_echoes_detected_species(server):
     """Typing natural language ("mouse <CDR3>") into the single query box
-    drives a mouse-scoped search: the page echoes the detected species, and
-    with the cross-species-MHC toggle off no rendered record shows an HLA
-    allele (a human-organism MHC on a mouse record is filtered server-side
-    unless the toggle is checked)."""
+    drives a mouse-scoped search: the transparency line names the species
+    the router detected from free text, alongside the detected type and the
+    routed tool(s)."""
     errors = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -251,20 +251,16 @@ def test_ui_natural_language_mouse_query_hides_hla_until_toggled(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
-        assert page.locator("#xmhc").is_checked() is False, \
-            "the HLA-transgenic toggle must default to off"
         page.fill("#q", "mouse CASGGTGEQYF")
         page.click("#f button")
         page.wait_for_function(
-            "document.querySelector('#echo').innerText.length > 0", timeout=8000)
-        echo_text = page.locator("#echo").inner_text()
+            "document.querySelector('#out').innerText.includes('understood as')", timeout=8000)
         out_text = page.locator("#out").inner_text()
         browser.close()
     assert errors == [], f"UI console errors: {errors}"
-    assert "mouse" in echo_text.lower(), \
-        f"expected the echoed understanding to name the detected species mouse, got: {echo_text}"
-    assert "HLA" not in out_text, \
-        "no record card should show an HLA allele while the transgenic toggle is off"
+    assert "understood as:" in out_text
+    assert "species: mouse" in out_text.lower(), \
+        f"expected the transparency line to name the detected species mouse, got: {out_text}"
 
 
 def test_ui_reconstruction_panel_builds_full_chain(server):
@@ -279,6 +275,7 @@ def test_ui_reconstruction_panel_builds_full_chain(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
+        page.click('[data-tool="reconstruct"]')  # the reconstruct form is hidden until its chip is clicked
         page.select_option("#rc_sp", "mouse")
         page.fill("#rc_v", "TRBV19")
         page.fill("#rc_j", "TRBJ1-4")
@@ -312,6 +309,7 @@ def test_ui_assign_panel_identifies_full_chain_with_blank_overrides(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
+        page.click('[data-tool="reconstruct"]')  # the reconstruct form is hidden until its chip is clicked
         page.select_option("#rc_sp", "mouse")
         page.fill("#rc_v", "")
         page.fill("#rc_j", "")
@@ -338,6 +336,7 @@ def test_ui_assign_panel_refuses_bare_cdr3_with_db_inference(server):
         page.on("console", lambda m: errors.append(m.text)
                 if m.type == "error" and "favicon" not in m.text else None)
         page.goto(f"{server}/ui")
+        page.click('[data-tool="reconstruct"]')  # the reconstruct form is hidden until its chip is clicked
         page.select_option("#rc_sp", "human")
         page.fill("#rc_v", "")
         page.fill("#rc_j", "")
@@ -353,3 +352,112 @@ def test_ui_assign_panel_refuses_bare_cdr3_with_db_inference(server):
     assert "database frequency inference" in text, \
         "the weaker database inference should be under its own heading"
     assert "TRBV4-1" in text, "the inferred V/J candidates should be listed"
+
+
+def test_ui_sequence_query_routes_to_assignment_card(server):
+    """A full chain pasted into the single query box (Task 3's central box)
+    routes to the assign tool, and its germline-assignment card renders in
+    the adaptive result area."""
+    from tcr_explorer.reconstructor import reconstruct_tcr
+
+    full_chain_aa = reconstruct_tcr(
+        "TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse"
+    )["full_chain_aa"]
+
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.select_option("#sp", "mouse")
+        page.fill("#q", full_chain_aa)
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('CASSMADRKFF')", timeout=8000)
+        text = page.locator("#out").inner_text()
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert "understood as: raw_aa -> assign" in text, \
+        "a full chain should route to the assign tool alone"
+    assert "TRBV19" in text, "the assigned V allele should render"
+    assert "CASSMADRKFF" in text, "the extracted CDR3 should render"
+
+
+def test_ui_cdr3_query_renders_two_cards(server):
+    """A bare CDR3 typed into the single query box yields two blocks
+    (records then assign) and both must render in the adaptive result area."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.fill("#q", "CASSLGTEAFF")
+        page.click("#f button")
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
+        text = page.locator("#out").inner_text()
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert "understood as: raw_aa -> records, assign" in text
+    assert "Exact records" in text, "the records card should render"
+    assert "not determinable" in text.lower() or "CASSLGTEAFF" in text, \
+        "the assign card should also render (a bare CDR3 refuses a V call)"
+
+
+def test_ui_override_chip_reruns_query_forcing_tool(server):
+    """Clicking the records override chip re runs the current query forcing
+    the records tool, and the forced block renders."""
+    errors = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.on("console", lambda m: errors.append(m.text)
+                if m.type == "error" and "favicon" not in m.text else None)
+        page.goto(f"{server}/ui")
+        page.fill("#q", "CASSLGTEAFF")
+        page.click('[data-tool="records"]')
+        page.wait_for_function(
+            "document.querySelector('#out').innerText.includes('Exact records')", timeout=8000)
+        text = page.locator("#out").inner_text()
+        browser.close()
+    assert errors == [], f"UI console errors: {errors}"
+    assert "understood as: raw_aa -> records" in text, \
+        "the forced tool should be reported in the transparency line"
+    assert "Exact records" in text
+
+
+def test_ui_reconstruct_chip_reveals_hidden_form(server):
+    """The reconstruct chip reveals the (previously hidden) #rcf form
+    instead of routing through /v1/tcr/query."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(f"{server}/ui")
+        assert not page.locator("#rcf").is_visible(), \
+            "the reconstruct form should be hidden before its chip is clicked"
+        page.click('[data-tool="reconstruct"]')
+        assert page.locator("#rcf").is_visible(), \
+            "the reconstruct form should be revealed after its chip is clicked"
+        browser.close()
+
+
+def test_ui_onboarding_block_renders_artifacts_and_copy_button(server):
+    """The assistant onboarding block renders both copy-paste artifacts (the
+    MCP config JSON and the install prompt) and at least one copy button."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(f"{server}/ui")
+        text = page.locator("body").inner_text()
+        assert "Ask in plain English, use your own AI assistant" in text
+        assert '"mcpServers"' in text and "tcr-explorer-mcp" in text, \
+            "the MCP config JSON artifact should render"
+        assert "retrieve_tcr_records" in text and "align_tcr_genes" in text, \
+            "the install prompt artifact should render"
+        assert page.locator(".copy-btn").count() >= 1, \
+            "at least one copy button should be present"
+        browser.close()

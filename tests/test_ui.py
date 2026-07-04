@@ -7,7 +7,7 @@ def test_ui_served():
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
     body = r.text
-    assert "<form" in body and "/v1/tcr/ask" in body
+    assert "<form" in body and "/v1/tcr/query" in body
     assert "TCR" in body
 
 
@@ -20,5 +20,8 @@ def test_ui_escapes_rendered_data():
     assert "esc(b.intent)" in body
     assert "esc(e.epitope_sequence)" in body
     assert "esc(n.cdr3_b_aa)" in body
-    # innerHTML is only assigned from strings built by render()/neighTable()
-    assert ".innerHTML=render(" in body or "innerHTML=render(" in body
+    # the adaptive result area is only assigned from strings built by
+    # renderBlock() (which itself only calls renderRecords/renderAssign/render(),
+    # all esc()-based), never from a raw template interpolation
+    assert "out.innerHTML=h" in body
+    assert "for(const block of (b.blocks||[]))h+=renderBlock(block)" in body

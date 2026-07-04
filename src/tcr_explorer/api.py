@@ -1102,10 +1102,12 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>TCR Explorer</title><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
  body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}
- h1{font-size:1.3rem} input,select,button{font-size:1rem;padding:.4rem}
- #q{width:100%;box-sizing:border-box;margin-bottom:.5rem}
+ h1{font-size:1.3rem;text-align:center} input,select,button{font-size:1rem;padding:.4rem}
+ #q{width:100%;box-sizing:border-box;margin-bottom:.5rem;font-size:1.1rem}
+ .hero{text-align:center;margin-bottom:1.2rem}
+ .guidance{color:#555;max-width:640px;margin:0 auto}
  .searchbar{background:#f7f7fb;border:1px solid #e2e2e8;border-radius:10px;padding:1rem}
- .searchrow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+ .searchrow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:center}
  .card{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
  .warn{color:#a15c00} .syn{color:#7a3e00;font-style:italic} table{border-collapse:collapse;width:100%}
  .loading{color:#0b5;font-weight:600} .loading::after{content:'';display:inline-block;width:.7em;height:.7em;margin-left:.4em;border:2px solid #0b5;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle} @keyframes spin{to{transform:rotate(360deg)}} button:disabled{opacity:.6}
@@ -1120,27 +1122,41 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  .xspecies{display:inline-block;background:#ffe6cc;color:#8a4b00;font-size:.72rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;margin-left:.4rem}
  .comp{font-family:monospace;font-size:.85rem;background:#eee;padding:.2rem .4rem;border-radius:4px;display:inline-block}
  .partner{margin-top:.4rem;padding-left:.6rem;border-left:3px solid #ccc}
- .recon{margin-top:1.5rem} .recon h2{margin:.2rem 0 .4rem;font-size:1.25rem} #rc_seq{width:100%;box-sizing:border-box;margin-bottom:.5rem} #rc_v,#rc_j{flex:1;min-width:9rem}
  .db-inference{margin-top:.6rem;padding-top:.4rem;border-top:1px dashed #ccc} .db-inference h4{margin:.2rem 0;font-size:.95rem}
- details.advanced{margin-top:2rem;color:#444}
- details.advanced summary{cursor:pointer;font-size:1.1rem;font-weight:600}
+ .chiprow{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin:.8rem 0}
+ .chip{background:#fff;border:1px solid #bbb;border-radius:999px;padding:.3rem .8rem;font-size:.85rem;cursor:pointer}
+ .chip:hover{background:#f0f0f0}
+ .hiddenform{display:none;margin-top:1.5rem}
+ .hiddenform h2{margin:.2rem 0 .4rem;font-size:1.25rem}
+ #rc_seq{width:100%;box-sizing:border-box;margin-bottom:.5rem} #rc_v,#rc_j{flex:1;min-width:9rem}
+ .onboard pre{white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:.82rem;background:#eee;padding:.5rem;border-radius:6px}
+ .onboard h4{margin:.8rem 0 .2rem}
+ .copy-btn{margin-top:.2rem}
 </style></head><body>
+<div class="hero">
 <h1>TCR Explorer</h1>
-<p class="muted">Ask anything about a TCR in plain text: a gene, a CDR3, a species plus a CDR3, a V+J+CDR3 phrase, or a database id. Known epitopes are retrieved; similar-TCR epitopes are inferred.</p>
+<p class="guidance muted">Ask anything about a TCR in one box: a gene, a CDR3, a species plus a CDR3, a V+J+CDR3 phrase, a full chain, or a database id.</p>
+</div>
 <div class="searchbar">
 <form id="f">
 <input id="q" placeholder="e.g. mouse CASSGGTGEQYF, TRBV20-1, human CASSLGTEAFF TRBJ2-7, vdjdb:12345" value="TRBV20-1">
 <div class="searchrow">
 <select id="sp"><option value="">auto (detect from text)</option><option value="human">human</option><option value="mouse">mouse</option></select>
-<label><input type="checkbox" id="xmhc"> include HLA-transgenic (cross-species MHC)</label>
 <button type="submit">Search</button>
 </div>
 </form>
-<div id="echo"></div>
 </div>
-<div id="out"><div id="askOut"></div><div id="recOut"></div></div>
-<div class="searchbar recon">
-<h2>Assign TCR alleles</h2>
+<div class="chiprow" id="chips">
+<button type="button" class="chip" data-tool="records">records</button>
+<button type="button" class="chip" data-tool="assign">assign</button>
+<button type="button" class="chip" data-tool="dossier">dossier</button>
+<button type="button" class="chip" data-tool="similar">similar</button>
+<button type="button" class="chip" data-tool="reconstruct">reconstruct</button>
+<button type="button" class="chip" data-tool="align">align</button>
+</div>
+<div id="out"></div>
+<div class="searchbar hiddenform" id="rcform">
+<h2>Reconstruct or assign a TCR</h2>
 <p class="muted">Paste a CDR3, a V region, or a full chain (nucleotide or amino acid). It is aligned against IMGT germline and called at the allele level: V, J, D and constant calls with identity, aligned span and the full tie set; per region identity; the extracted CDR3; and, when enough sequence is present, a reconstructed full chain (mouse constant is oracle-validated, human is not). A bare CDR3 has no framework to call a V allele from, so it is refused and backed instead by a database frequency inference, clearly labeled as weaker. Fill in both V and J below to skip assignment and reconstruct directly from those explicit genes (allele defaults to *01 unless written into the gene name, e.g. TRAV7-4*02).</p>
 <form id="rcf">
 <input id="rc_seq" placeholder="paste a CDR3, a V region, or a full chain (nucleotide or amino acid), e.g. CASSLGTEAFF">
@@ -1153,8 +1169,8 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 </form>
 <div id="rc_out"></div>
 </div>
-<details class="advanced">
-<summary>Align a gene set</summary>
+<div class="searchbar hiddenform" id="alignform">
+<h2>Align a gene set</h2>
 <p class="muted">Align a germline set (species + chain + segment) or a gene list. V/J/C come from the germline source; D is not available there.</p>
 <form id="af">
 <select id="a_sp"><option>human</option><option>mouse</option></select>
@@ -1163,67 +1179,19 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <label><input type="checkbox" id="a_translate"> translate</label>
 <button type="submit">Align</button></form>
 <div id="a_out"></div>
-</details>
+</div>
+<div class="card onboard" id="onboard">
+<h3>Ask in plain English, use your own AI assistant</h3>
+<p class="muted">TCR Explorer also runs as an MCP server, so your own AI assistant (Claude Code, Claude Desktop, or any MCP compatible client) can call these tools directly while you keep chatting in plain English. Paste either artifact below into your assistant.</p>
+<h4>MCP server config</h4>
+<pre id="mcpConfigOut"></pre>
+<button type="button" class="copy-btn" id="copyConfigBtn">Copy config</button>
+<h4>Install prompt</h4>
+<pre id="mcpPromptOut"></pre>
+<button type="button" class="copy-btn" id="copyPromptBtn">Copy prompt</button>
+</div>
 <script>
-const f=document.getElementById('f'),askOut=document.getElementById('askOut'),recOut=document.getElementById('recOut'),echoEl=document.getElementById('echo'),xmhc=document.getElementById('xmhc');
-let lastQuery=null,lastSpecies=null;
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function speciesOverride(){const v=document.getElementById('sp').value;return v?v:null;}
-async function refreshRecords(q,spOverride){
- lastQuery=q;lastSpecies=spOverride;
- const body={query:q,include_cross_species_mhc:xmhc.checked};
- if(spOverride)body.species=spOverride;
- try{
-  const rr=await fetch('/v1/tcr/records',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify(body)});
-  if(!rr.ok){return;}
-  const rb=await rr.json();
-  echoEl.innerHTML=renderEcho(rb.query_echo);
-  recOut.innerHTML=renderRecords(rb);
- }catch(recErr){/* records lookup is additive, never fatal to the ask flow */}
-}
-async function runSearch(q,spOverride){
- askOut.innerHTML='<p class="loading">Searching...</p>';recOut.innerHTML='';echoEl.innerHTML='';
- try{
-  const askBody={query:q};
-  if(spOverride)askBody.species=spOverride;
-  const r=await fetch('/v1/tcr/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify(askBody)});
-  if(!r.ok){askOut.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';}
-  else{const b=await r.json();askOut.innerHTML=render(b);}
- }catch(err){askOut.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
- await refreshRecords(q,spOverride);
-}
-f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';
- try{
-  const q=document.getElementById('q').value,sp=speciesOverride();
-  await runSearch(q,sp);
- }finally{btn.disabled=false;btn.textContent=t0;}});
-xmhc.addEventListener('change',()=>{if(lastQuery!=null)refreshRecords(lastQuery,lastSpecies);});
-function renderEcho(qe){if(!qe)return '';
- const parts=[];
- if(qe.species)parts.push('species <b>'+esc(qe.species)+'</b>');
- if(qe.cdr3_aa)parts.push('CDR3 <code>'+esc(qe.cdr3_aa)+'</code>');
- if(qe.v_gene)parts.push('V '+esc(qe.v_gene));
- if(qe.j_gene)parts.push('J '+esc(qe.j_gene));
- if(!parts.length)return '';
- return '<div class="echo">Understood: '+parts.join(' &middot; ')+'</div>';}
-function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
- if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} · species: ${esc(d.species)} · status: ${esc(d.status)}</p>`;
-  if(d.status==='partial' && !(d.genes&&d.genes.v) && !(d.known_epitopes&&d.known_epitopes.length)){h+='<p class="muted">A CDR3 on its own cannot identify V/D/J. Provide the V and J genes (V+J+CDR3), a gene name, or a full V(D)J sequence to get an annotation.</p>';}
-  if(d.genes&&d.genes.v){h+=`<p>V: ${esc(d.genes.v.call)} (${esc(d.genes.v.score_method)})</p>`;}
-  if(d.regions){h+='<p>';for(const k of ['cdr1','cdr2','cdr3']){if(d.regions[k]&&d.regions[k].aa)h+=`${k}: <code>${esc(d.regions[k].aa)}</code> `;}h+='</p>';}
-  if(d.junction&&d.junction.cdr3_nt_is_synthetic){h+=`<p class="syn">cdr3_nt is synthetic (back-translated)</p>`;}
-  if(d.known_epitopes&&d.known_epitopes.length){h+='<h3>Known epitopes (retrieved)</h3><table><tr><th>epitope</th><th>MHC</th><th>antigen</th></tr>';
-   for(const e of d.known_epitopes)h+=`<tr><td>${esc(e.epitope_sequence)}</td><td>${esc(e.mhc_allele)}</td><td>${esc(e.antigen_name)}</td></tr>`;h+='</table>';}
-  if(d.neighbours&&d.neighbours.length){h+=neighTable(d.neighbours);}
-  if(d.warnings&&d.warnings.length){h+='<p class="warn">warnings: '+d.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}}
- if(b.neighbours_result){const nr=b.neighbours_result;h+=neighTable(nr.neighbours);if(nr.warnings&&nr.warnings.length){h+='<p class="warn">'+nr.warnings.map(w=>esc(w.message||w.code)).join('; ')+'</p>';}}
- if(b.search_result){h+=`<p class="muted">search returned ${b.search_result.total} records</p>`;}
- return h+'</div>';}
-function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">No matching known TCRs found in the reference database for this CDR3.</p>';
- let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
- for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
 function sourceBadge(s){return '<span class="badge">'+esc((s||'').toUpperCase())+'</span>';}
 function compStrip(c){if(!c)return '';
  return '<div class="comp">'+esc(c.v_germline_aa||'-')+' | '+esc(c.cdr3_aa||'-')+' | '+esc(c.j_germline_aa||'-')+'</div>';}
@@ -1272,18 +1240,22 @@ function renderRecords(data){if(!data)return '';
  h+='</div>';
  if(data.warnings&&data.warnings.length){h+='<p class="warn">'+esc(data.warnings.map(w=>w.message||w.code).join('; '))+'</p>';}
  return h;}
-const af=document.getElementById('af'),a_out=document.getElementById('a_out');
-af.addEventListener('submit',async e=>{e.preventDefault();const btn=af.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Aligning...';a_out.innerHTML='<p class="loading">Aligning...</p>';
- try{
-  const r=await fetch('/v1/tcr/align',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({species:document.getElementById('a_sp').value,
-    chain:document.getElementById('a_chain').value,
-    segment:document.getElementById('a_seg').value,
-    translate:document.getElementById('a_translate').checked})});
-  if(!r.ok){a_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
-  const b=await r.json();a_out.innerHTML=renderAlign(b);
- }catch(err){a_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
- finally{btn.disabled=false;btn.textContent=t0;}});
+function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">No matching known TCRs found in the reference database for this CDR3.</p>';
+ let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
+ for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
+function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
+ if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} &middot; species: ${esc(d.species)} &middot; status: ${esc(d.status)}</p>`;
+  if(d.status==='partial' && !(d.genes&&d.genes.v) && !(d.known_epitopes&&d.known_epitopes.length)){h+='<p class="muted">A CDR3 on its own cannot identify V/D/J. Provide the V and J genes (V+J+CDR3), a gene name, or a full V(D)J sequence to get an annotation.</p>';}
+  if(d.genes&&d.genes.v){h+=`<p>V: ${esc(d.genes.v.call)} (${esc(d.genes.v.score_method)})</p>`;}
+  if(d.regions){h+='<p>';for(const k of ['cdr1','cdr2','cdr3']){if(d.regions[k]&&d.regions[k].aa)h+=`${k}: <code>${esc(d.regions[k].aa)}</code> `;}h+='</p>';}
+  if(d.junction&&d.junction.cdr3_nt_is_synthetic){h+=`<p class="syn">cdr3_nt is synthetic (back-translated)</p>`;}
+  if(d.known_epitopes&&d.known_epitopes.length){h+='<h3>Known epitopes (retrieved)</h3><table><tr><th>epitope</th><th>MHC</th><th>antigen</th></tr>';
+   for(const e of d.known_epitopes)h+=`<tr><td>${esc(e.epitope_sequence)}</td><td>${esc(e.mhc_allele)}</td><td>${esc(e.antigen_name)}</td></tr>`;h+='</table>';}
+  if(d.neighbours&&d.neighbours.length){h+=neighTable(d.neighbours);}
+  if(d.warnings&&d.warnings.length){h+='<p class="warn">warnings: '+d.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}}
+ if(b.neighbours_result){const nr=b.neighbours_result;h+=neighTable(nr.neighbours);if(nr.warnings&&nr.warnings.length){h+='<p class="warn">'+nr.warnings.map(w=>esc(w.message||w.code)).join('; ')+'</p>';}}
+ if(b.search_result){h+=`<p class="muted">search returned ${b.search_result.total} records</p>`;}
+ return h+'</div>';}
 function shade(c){c=c||0;if(c>=0.9)return 'background:#08519c;color:#fff';if(c>=0.7)return 'background:#3182bd;color:#fff';if(c>=0.5)return 'background:#6baed6';if(c>=0.3)return 'background:#bdd7e7';return '';}
 function cell(t,s){return '<span style="'+s+'">'+esc(t)+'</span>';}
 function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <span class="muted">('+esc(b.n_sequences)+' sequences, '+esc(b.mean_pct_identity)+'% identity, view '+esc(b.view)+')</span></h3>';
@@ -1304,26 +1276,6 @@ function renderAlign(b){let h='<div class="card"><h3>engine: '+esc(b.engine)+' <
  h+='</pre>';
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(w=>esc(w.code)).join(', ')+'</p>';}
  return h+'</div>';}
-const rcf=document.getElementById('rcf'),rc_out=document.getElementById('rc_out');
-rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Working...';rc_out.innerHTML='<p class="loading">Working...</p>';
- try{
-  const seq=document.getElementById('rc_seq').value;
-  const sp=document.getElementById('rc_sp').value;
-  const vg=document.getElementById('rc_v').value;
-  const jg=document.getElementById('rc_j').value;
-  if(vg&&jg){
-   const r=await fetch('/reconstruct',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({v_gene:vg,j_gene:jg,cdr3_aa:seq,species:sp})});
-   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
-   const b=await r.json();rc_out.innerHTML=renderReconstruct(b);
-  }else{
-   const r=await fetch('/v1/tcr/assign',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({sequence:seq,species:sp,want_d:true})});
-   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
-   const b=await r.json();rc_out.innerHTML=renderAssign(b);
-  }
- }catch(err){rc_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
- finally{btn.disabled=false;btn.textContent=t0;}});
 function seqBlock(label,seq){if(!seq)return '';return '<p class="muted" style="margin:.3rem 0 .1rem">'+esc(label)+' ('+seq.length+' aa)</p><div class="comp" style="word-break:break-all;white-space:pre-wrap">'+esc(seq)+'</div>';}
 function renderReconstruct(b){
  if(!b.v_found||!b.j_found){return '<p class="warn">Germline not found'+(!b.v_found?' for V '+esc(b.v_gene):'')+(!b.j_found?' for J '+esc(b.j_gene):'')+'. Check the gene names.</p>';}
@@ -1364,6 +1316,92 @@ function renderAssign(b){
  if(b.reconstruction){h+=renderReconstruct(b.reconstruction);}
  if(b.warnings&&b.warnings.length){h+='<p class="warn">warnings: '+b.warnings.map(esc).join(', ')+'</p>';}
  return h+'</div>';}
+function cardWrap(title,inner){return '<div class="card"><h3>'+esc(title)+'</h3>'+inner+'</div>';}
+function renderBlock(block){
+ const t=block.tool;
+ if(t==='records')return cardWrap(block.title,renderRecords(block.data));
+ if(t==='assign')return renderAssign(block.data);
+ if(t==='dossier')return render({dossier:block.data,intent:'dossier',plan_source:'query_router',llm_used:false});
+ if(t==='ask')return render(block.data);
+ if(t==='similar')return render({neighbours_result:block.data,intent:'similar',plan_source:'query_router',llm_used:false});
+ return cardWrap(block.title,'<pre>'+esc(JSON.stringify(block.data))+'</pre>');
+}
+function renderQueryResult(b){
+ const u=b.understood||{};
+ let h='<div class="echo">understood as: <b>'+esc(u.detected_type)+'</b> -&gt; '+esc((u.tools||[]).join(', '));
+ if(u.species)h+=' (species: '+esc(u.species)+')';
+ h+='</div>';
+ if(u.note)h+='<p class="muted">'+esc(u.note)+'</p>';
+ for(const block of (b.blocks||[]))h+=renderBlock(block);
+ if(b.warnings&&b.warnings.length)h+='<p class="warn">'+esc(b.warnings.join('; '))+'</p>';
+ out.innerHTML=h;
+}
+const f=document.getElementById('f'),out=document.getElementById('out'),chips=document.getElementById('chips');
+function speciesOverride(){const v=document.getElementById('sp').value;return v?v:null;}
+async function runQuery(q,spOverride,force){
+ out.innerHTML='<p class="loading">Searching...</p>';
+ try{
+  const body={query:q};
+  if(spOverride)body.species=spOverride;
+  if(force)body.force=force;
+  const r=await fetch('/v1/tcr/query',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(body)});
+  if(!r.ok){out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();renderQueryResult(b);
+ }catch(err){out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+}
+f.addEventListener('submit',async e=>{e.preventDefault();const btn=f.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Searching...';
+ try{
+  const q=document.getElementById('q').value,sp=speciesOverride();
+  await runQuery(q,sp,null);
+ }finally{btn.disabled=false;btn.textContent=t0;}});
+function toggleHiddenForm(id){const el=document.getElementById(id);el.style.display=(el.style.display==='none'||!el.style.display)?'block':'none';}
+chips.addEventListener('click',e=>{
+ const btn=e.target.closest('.chip');if(!btn)return;
+ const tool=btn.dataset.tool;
+ if(tool==='reconstruct'){toggleHiddenForm('rcform');return;}
+ if(tool==='align'){toggleHiddenForm('alignform');return;}
+ const q=document.getElementById('q').value,sp=speciesOverride();
+ runQuery(q,sp,tool);
+});
+const af=document.getElementById('af'),a_out=document.getElementById('a_out');
+af.addEventListener('submit',async e=>{e.preventDefault();const btn=af.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Aligning...';a_out.innerHTML='<p class="loading">Aligning...</p>';
+ try{
+  const r=await fetch('/v1/tcr/align',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({species:document.getElementById('a_sp').value,
+    chain:document.getElementById('a_chain').value,
+    segment:document.getElementById('a_seg').value,
+    translate:document.getElementById('a_translate').checked})});
+  if(!r.ok){a_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();a_out.innerHTML=renderAlign(b);
+ }catch(err){a_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
+const rcf=document.getElementById('rcf'),rc_out=document.getElementById('rc_out');
+rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Working...';rc_out.innerHTML='<p class="loading">Working...</p>';
+ try{
+  const seq=document.getElementById('rc_seq').value;
+  const sp=document.getElementById('rc_sp').value;
+  const vg=document.getElementById('rc_v').value;
+  const jg=document.getElementById('rc_j').value;
+  if(vg&&jg){
+   const r=await fetch('/reconstruct',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({v_gene:vg,j_gene:jg,cdr3_aa:seq,species:sp})});
+   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+   const b=await r.json();rc_out.innerHTML=renderReconstruct(b);
+  }else{
+   const r=await fetch('/v1/tcr/assign',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({sequence:seq,species:sp,want_d:true})});
+   if(!r.ok){rc_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+   const b=await r.json();rc_out.innerHTML=renderAssign(b);
+  }
+ }catch(err){rc_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
+const MCP_CONFIG_TEXT='{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}';
+const MCP_PROMPT_TEXT="Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.";
+document.getElementById('mcpConfigOut').textContent=MCP_CONFIG_TEXT;
+document.getElementById('mcpPromptOut').textContent=MCP_PROMPT_TEXT;
+document.getElementById('copyConfigBtn').addEventListener('click',()=>{navigator.clipboard.writeText(MCP_CONFIG_TEXT).catch(()=>{});});
+document.getElementById('copyPromptBtn').addEventListener('click',()=>{navigator.clipboard.writeText(MCP_PROMPT_TEXT).catch(()=>{});});
 </script></body></html>"""
 
 
