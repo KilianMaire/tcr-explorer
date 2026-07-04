@@ -36,6 +36,7 @@ from .mcp_clients import ToolServerClient
 from .models import (
     AssignRequest, AssignResponse,
     CDRPredictResponse, GeneRecord, GeneSource, IEDBHit, IngestResponse, NLQueryRequest,
+    QueryRequest, QueryResponse, QueryUnderstanding, QueryBlock,
     ReconstructRequest, ReconstructResponse,
     SearchRequest, SearchResponse, Species,
 )
@@ -1066,6 +1067,25 @@ def tcr_assign(req: AssignRequest):
         req.sequence, species=req.species, chain=req.chain, want_d=req.want_d
     )
     return AssignResponse(**dataclasses.asdict(result))
+
+
+@app.post("/v1/tcr/query", response_model=QueryResponse)
+def tcr_query(req: QueryRequest):
+    # Synchronous by design, same rationale as /v1/tcr/dossier above: routed
+    # tools may hit disk-backed lookups, so it runs in FastAPI's threadpool
+    # rather than blocking the event loop.
+    from .query_router import route_query  # local import: avoids import cycles
+
+    result = route_query(req.query, species=req.species, force=req.force)
+    understood = QueryUnderstanding(
+        input=result.input,
+        detected_type=result.detected_type,
+        species=result.species,
+        tools=result.tools,
+        note=result.note,
+    )
+    blocks = [QueryBlock(tool=b.tool, title=b.title, data=b.data) for b in result.blocks]
+    return QueryResponse(understood=understood, blocks=blocks, warnings=result.warnings)
 
 
 @app.post("/v1/tcr/ask", response_model=AskResponse)

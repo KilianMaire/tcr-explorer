@@ -257,3 +257,33 @@ class AssignResponse(BaseModel):
     v_db_inference: Optional[list] = None
     reconstruction: Optional[dict] = None
     warnings: list[str] = Field(default_factory=list)
+
+
+# ──────────────────────────────────────────────────────────
+# Query Router Models
+# ──────────────────────────────────────────────────────────
+
+class QueryRequest(BaseModel):
+    query: str
+    species: Optional[Species] = None
+    force: Optional[str] = None
+
+
+class QueryBlock(BaseModel):
+    tool: str
+    title: str
+    data: dict
+
+
+class QueryUnderstanding(BaseModel):
+    input: str
+    detected_type: str
+    species: Optional[str] = None
+    tools: list[str]
+    note: str
+
+
+class QueryResponse(BaseModel):
+    understood: QueryUnderstanding
+    blocks: list[QueryBlock]
+    warnings: list[str] = Field(default_factory=list)
