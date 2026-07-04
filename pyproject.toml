@@ -1,12 +1,31 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tcr-explorer"
-version = "1.0.0"
+version = "0.1.0"
 description = "Federated TCR analysis: records retrieval, germline allele assignment, reconstruction, dossiers, and similarity, over a web UI, REST API, and MCP server"
+readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Kilian Maire" }]
+keywords = [
+    "TCR", "T-cell-receptor", "immunology", "AIRR", "VDJ", "germline",
+    "IMGT", "VDJdb", "IEDB", "McPAS", "bioinformatics", "MCP",
+    "immune-repertoire", "epitope",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
 dependencies = [
     "mcp>=1.0.0,<2",
     "starlette>=0.40,<0.48",
@@ -30,6 +49,10 @@ ui-legacy = ["streamlit>=1.35.0"]
 tcr-explorer-mcp = "tcr_explorer.mcp_server:main"
 tcr-explorer-refresh = "tcr_explorer.bootstrap:main"
 
+[project.urls]
+Homepage = "https://github.com/KilianMaire/tcr-explorer"
+Issues = "https://github.com/KilianMaire/tcr-explorer/issues"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -38,6 +61,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 tcr_explorer = [
+    "py.typed",
     "data/*.json",
     "data/germline/*.md",
     "data/germline/*/*.fasta",
