@@ -64,3 +64,7 @@ def main() -> None:
         print(f"  {src}: {status}", file=sys.stderr)
     print(f"  germline: {summary['germline']}", file=sys.stderr)
     print(f"Built {summary['rows_total']} records into {summary['data_dir']}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
