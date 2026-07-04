@@ -1,12 +1,21 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "tcr-explorer"
 version = "1.0.0"
 description = "Distributed API for IMGT, VDJdb, IEDB, and IPD-MHC search"
 requires-python = ">=3.10"
+
+[project.scripts]
+tcr-explorer-mcp = "tcr_explorer.mcp_server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

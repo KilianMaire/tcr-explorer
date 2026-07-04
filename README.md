@@ -217,6 +217,26 @@ PYTHONPATH=src pytest tests/ -v
 
 ---
 
+## Connect your assistant
+
+TCR Explorer ships an MCP server (`tcr_explorer.mcp_server:main`, console entry point `tcr-explorer-mcp`) so an assistant can query IMGT, VDJdb, IEDB, and IPD-MHC directly.
+
+Add this to your assistant's MCP configuration:
+
+```json
+{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
+```
+
+Or paste this prompt into your assistant to have it set the connection up for you:
+
+```
+Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.
+```
+
+Until the package is published, the git form works instead: `uvx --from git+<your-repo-url> tcr-explorer-mcp`.
+
+---
+
 ## Architecture
 
 ```
