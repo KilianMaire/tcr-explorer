@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import tempfile
 import zipfile
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -567,6 +568,7 @@ def build_index(raw_dir: str, out_parquet: str, out_meta: str) -> dict:
     meta = {
         "built_columns": SCHEMA_COLUMNS,
         "rows_total": len(combined),
+        "built_at": date.today().isoformat(),
         "per_source": per_source,
         "snapshots": {
             "vdjdb": "vdjdb-2026-06-03",

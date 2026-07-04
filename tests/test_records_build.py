@@ -75,3 +75,9 @@ def test_build_index_concatenates_dedups_and_writes_meta(tmp_path):
     # dedup: no exact duplicate on the dedup key within a source
     key = ["source", "chain", "cdr3_aa", "v_gene", "j_gene", "epitope_aa", "mhc_a"]
     assert not df.duplicated(subset=key).any()
+
+
+def test_meta_has_built_at(tmp_path):
+    from tcr_explorer.records_build import build_index
+    meta = build_index(str(tmp_path), str(tmp_path / "i.parquet"), str(tmp_path / "m.json"))
+    assert "built_at" in meta and len(meta["built_at"]) == 10  # YYYY-MM-DD
