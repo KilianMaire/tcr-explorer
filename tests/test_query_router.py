@@ -37,6 +37,15 @@ def test_phrase_routes_to_records_with_species():
     assert r.tools == ["records"] and r.species == "mouse"
 
 
+def test_phrase_explicit_species_overrides_contradictory_word_in_records():
+    # dropdown species="human" but the phrase itself says "mouse": the
+    # explicit dropdown must win both in the understood banner AND in what
+    # records actually filters by (not just the displayed species).
+    r = route_query("mouse CASSGGTGEQYF", species="human")
+    assert r.tools == ["records"] and r.species == "human"
+    assert r.blocks[0].data["query_echo"]["species"] == "human"
+
+
 def test_free_text_falls_to_ask():
     r = route_query("which TCRs recognize influenza")
     assert r.tools == ["ask"]

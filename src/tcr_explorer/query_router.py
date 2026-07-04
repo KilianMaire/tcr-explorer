@@ -106,8 +106,13 @@ def route_query(query: str, species: Optional[str] = None, force: Optional[str] 
         blocks.append(_assign(q, sp))
         note = "amino acid sequence, germline assignment"
         tools = ["assign"]
-    elif parsed["cdr3_aa"] or parsed["v_gene"] or parsed["j_gene"] or parsed["record_id"]:
-        blocks.append(_records(query=q, species=sp))
+    elif parsed["record_id"]:
+        blocks.append(_records(query=parsed["record_id"], species=sp))
+        note = "parsed a phrase into records filters"
+        tools = ["records"]
+    elif parsed["cdr3_aa"] or parsed["v_gene"] or parsed["j_gene"]:
+        blocks.append(_records(cdr3_aa=parsed["cdr3_aa"], v_gene=parsed["v_gene"],
+                               j_gene=parsed["j_gene"], species=sp))
         note = "parsed a phrase into records filters"
         tools = ["records"]
     else:
