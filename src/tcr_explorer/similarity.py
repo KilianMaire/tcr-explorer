@@ -52,11 +52,20 @@ def cdr3_distance(a: str, b: str) -> float:
 
 
 @lru_cache(maxsize=4)
+def _read_index_cached(path: str) -> pd.DataFrame:
+    return pd.read_parquet(path)
+
+
 def _load_index(path: str) -> Optional[pd.DataFrame]:
+    # Do not cache the absent case, so a query after tcr-explorer-refresh sees
+    # the newly built index in a long-running process.
     p = Path(path)
     if not p.exists():
         return None
-    return pd.read_parquet(p)
+    return _read_index_cached(path)
+
+
+_load_index.cache_clear = _read_index_cached.cache_clear
 
 
 def _v_family(v: object) -> str:
@@ -102,7 +111,7 @@ def find_similar_tcrs(
             DossierWarning(
                 code="similarity_index_unavailable",
                 block="neighbours",
-                message=f"vendored index not found at {path}",
+                message="records data is not downloaded yet. Run `tcr-explorer-refresh` once.",
             )
         )
         return [], "none", 0, warnings

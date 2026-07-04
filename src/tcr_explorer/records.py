@@ -150,15 +150,25 @@ def _default_records_index_path() -> str:
 
 
 @lru_cache(maxsize=4)
-def load_records_index(path: Optional[str] = None) -> Optional[pd.DataFrame]:
-    """Load the vendored harmonized index parquet, or None if it is absent.
+def _read_index_cached(path: str) -> pd.DataFrame:
+    return pd.read_parquet(path)
 
-    `path` defaults to `RECORDS_INDEX_PATH` env var, else `data/records_index.parquet`.
+
+def load_records_index(path: Optional[str] = None) -> Optional[pd.DataFrame]:
+    """Load the harmonized index parquet, or None if it is absent.
+
+    `path` defaults to the `RECORDS_INDEX_PATH` env var, else the user data dir
+    index. The absent case is NOT cached, so a query issued after
+    `tcr-explorer-refresh` picks up the newly built index in a long-running
+    process (only successful loads are memoized).
     """
     p = Path(path or _default_records_index_path())
     if not p.exists():
         return None
-    return pd.read_parquet(p)
+    return _read_index_cached(str(p))
+
+
+load_records_index.cache_clear = _read_index_cached.cache_clear
 
 
 def infer_vj_from_cdr3(
@@ -407,14 +417,27 @@ def retrieve_records(request: RecordsRequest, index_path: Optional[str] = None) 
     df = load_records_index(resolved_path)
 
     if df is None or df.empty:
+        present = Path(resolved_path).exists()
+        message = (
+            "records index is empty (a refresh may have failed). Run `tcr-explorer-refresh`."
+            if present else
+            "records data is not downloaded yet. Run `tcr-explorer-refresh` once."
+        )
         warnings.append(
-            DossierWarning(
-                code="records_index_unavailable",
-                block="records",
-                message=f"records index not found at {resolved_path}",
-            )
+            DossierWarning(code="records_index_unavailable", block="records", message=message)
         )
         return RecordsResponse(query_echo=query_echo, warnings=warnings)
+
+    from .data_paths import index_age_days, is_stale
+    if is_stale():
+        warnings.append(
+            DossierWarning(
+                code="records_index_stale",
+                block="records",
+                message=(f"records index is {int(index_age_days() or 0)} days old; "
+                         "run `tcr-explorer-refresh` to update."),
+            )
+        )
 
     sources_searched = sorted(str(s) for s in df["source"].dropna().unique().tolist())
 

@@ -571,10 +571,11 @@ def build_index(raw_dir: str, out_parquet: str, out_meta: str) -> dict:
         "built_at": date.today().isoformat(),
         "per_source": per_source,
         "snapshots": {
-            "vdjdb": "vdjdb-2026-06-03",
-            "iedb": "receptor_full_v3",
-            "mcpas": "mcpas.csv",
-            "tcr3d": "tcr3d_complexes.tsv",
+            "vdjdb": next((z.name for z in raw_path.glob("vdjdb-*.zip")), None),
+            "iedb": "iedb_receptor_full_v3.zip"
+            if (raw_path / "iedb_receptor_full_v3.zip").exists() else None,
+            "mcpas": "mcpas.csv" if mcpas_path.exists() else None,
+            "tcr3d": "tcr3d_complexes.tsv" if complexes_path.exists() else None,
         },
     }
     out_meta_path = Path(out_meta)

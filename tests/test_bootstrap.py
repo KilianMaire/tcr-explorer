@@ -33,3 +33,42 @@ def test_refresh_builds_index_from_downloads(monkeypatch, tmp_path):
     assert summary["rows_total"] >= 1
     assert summary["sources"]["mcpas"]["ok"] is True
     bootstrap.ensure_ready()  # now does not raise
+
+
+def test_refresh_all_downloads_fail_does_not_write_index(monkeypatch, tmp_path):
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
+    for name in ("download_vdjdb", "download_iedb", "download_mcpas", "download_tcr3d"):
+        monkeypatch.setattr(data_sources, name,
+                            lambda raw, s=name: data_sources.DownloadResult(s, False, error="net"))
+    summary = bootstrap.refresh()
+    assert summary["built"] is False
+    assert not data_paths.data_present()  # good/absent index not clobbered by an empty build
+
+
+def test_refresh_partial_keeps_existing_index(monkeypatch, tmp_path):
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
+    # simulate a pre-existing good index
+    data_paths.records_index_path().parent.mkdir(parents=True, exist_ok=True)
+    data_paths.records_index_path().write_bytes(b"PRIOR")
+    monkeypatch.setattr(data_sources, "download_vdjdb",
+                        lambda raw: data_sources.DownloadResult("vdjdb", True, bytes=1))
+    for name in ("download_iedb", "download_mcpas", "download_tcr3d"):
+        monkeypatch.setattr(data_sources, name,
+                            lambda raw, s=name: data_sources.DownloadResult(s, False, error="net"))
+    summary = bootstrap.refresh()
+    assert summary["built"] is False and "partial" in summary["reason"]
+    assert data_paths.records_index_path().read_bytes() == b"PRIOR"  # untouched
+
+
+def test_load_records_index_does_not_cache_absent(monkeypatch, tmp_path):
+    from tcr_explorer import records as R
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
+    monkeypatch.delenv("RECORDS_INDEX_PATH", raising=False)
+    R.load_records_index.cache_clear()
+    p = str(tmp_path / "records_index.parquet")
+    assert R.load_records_index(p) is None
+    import pandas as pd
+    from tcr_explorer.records_build import SCHEMA_COLUMNS
+    pd.DataFrame({c: ["x"] for c in SCHEMA_COLUMNS}).to_parquet(p, index=False)
+    # after the file appears, the same call must see it (absent result was not cached)
+    assert R.load_records_index(p) is not None
