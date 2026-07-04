@@ -1,9 +1,11 @@
-"""Known-epitope lookup and id resolution for the dossier, via the existing search path.
+"""Known-epitope lookup and id resolution for the dossier, via the /search path.
 
-Thin and fully defensive: the VDJdb/IEDB tool servers are not guaranteed to be
-running, so any failure (network error, missing server, unexpected shape)
-degrades to an empty result rather than raising. Callers never need to guard
-against exceptions from this module.
+Thin and fully defensive. `/search` is now scoped to hla/mhc allele sequences,
+so a vdjdb/iedb lookup raises HTTPException(400); that, like any other failure
+(network error, unexpected shape), degrades to an empty result rather than
+raising. Callers never need to guard against exceptions from this module. TCR
+record retrieval proper lives in `retrieve_records` (the vendored snapshot);
+wiring known-epitope lookup to that snapshot is a later follow up.
 """
 from __future__ import annotations
 
@@ -43,10 +45,11 @@ def _run_search(req: SearchRequest):
 def lookup_known_epitopes(
     gene: Optional[str], cdr3_aa: Optional[str], species: str
 ) -> tuple[list[IEDBHit], int]:
-    """Look up known epitopes for a V/J gene via the vdjdb/iedb search path.
+    """Look up known epitopes for a V/J gene via the /search path.
 
-    Returns `([], 0)` whenever `gene` is falsy, the search layer is
-    unavailable, or anything unexpected happens. Never raises.
+    Since `/search` is scoped to hla/mhc, a vdjdb lookup 400s and this returns
+    `([], 0)`; it also returns `([], 0)` whenever `gene` is falsy or anything
+    unexpected happens. Never raises.
     """
     if not gene:
         return [], 0

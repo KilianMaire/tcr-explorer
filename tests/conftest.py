@@ -5,10 +5,9 @@ batman tasks.  Modules that exist in the main branch (cdr_enricher, fasta_parser
 mcp_clients, nl_query, reconstructor) are stubbed here so that ``api.py`` can be
 imported without error.
 
-On the main branch, pure-logic modules (nl_query, cdr_enricher, fasta_parser,
-reconstructor) use their real implementations.  I/O-dependent modules
-(mcp_clients, search_index, file_ingest) are always stubbed so tests don't
-hit external services or local databases.
+Pure-logic modules (nl_query, cdr_enricher, fasta_parser, reconstructor) use
+their real implementations.  The I/O-dependent mcp_clients is always stubbed so
+tests never hit external services.
 """
 from __future__ import annotations
 
