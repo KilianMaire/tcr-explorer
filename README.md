@@ -1,17 +1,28 @@
-# IMGT Search Engine
+# TCR Explorer
 
-A four-tier distributed search API for immune receptor and epitope databases:
-**HLA** (IMGT/HLA via EBI), **TCR** (NCBI Entrez), **VDJdb**, and **IEDB**.
+A federated tool for T cell receptor sequence analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors. The same pure functions back a web UI, a REST API, and an MCP server.
 
-Features CDR1/CDR2 enrichment via stitchr IMGT germline data, a local SQLite search
-index, bulk VDJdb import, natural-language query parsing, and a Streamlit UI.
+---
+
+## What you get
+
+Everything below runs **in a single process from vendored data** (a harmonized records index plus IMGT germline). No external services, no API keys, no internet required for the core.
+
+- **Records retrieval** across VDJdb, IEDB, McPAS, and TCR3d.
+- **Germline assignment** of any TCR sequence (nucleotide or amino acid, CDR3, region, or full chain) to V and J alleles, with per region identity, co optimal ties reported, CDR3 extraction, and an honest refusal to call a V allele from a bare CDR3.
+- **Chain reconstruction** from V, J, and CDR3 (or from a CDR3 alone by inferring V and J from the database).
+- **Dossiers and similarity** for a receptor.
+- **A unified query box** at `/ui`: one central box routes any input to the right tool.
+
+Optional live enrichment (fresh EBI IMGT/HLA, NCBI Entrez, live VDJdb and IEDB proxying, plus ML scoring backends) runs as a separate service group and is never required to use the tool. See [Optional: live enrichment stack](#optional-live-enrichment-stack).
 
 ---
 
 ## Requirements
 
 - Python 3.11+
-- Internet access (EBI, NCBI, VDJdb, and IEDB public APIs)
+
+No internet access is needed for the core features. The vendored data ships with the package.
 
 ---
 
@@ -21,191 +32,139 @@ index, bulk VDJdb import, natural-language query parsing, and a Streamlit UI.
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# One-time download of stitchr IMGT germline data (required for CDR1/CDR2 prediction)
-stitchrdl -s human
 ```
 
 ---
 
-## Start the services
+## Run it
 
-Each service runs independently. Open five terminals from the project root:
+Pick one of two front doors. Both run as a **single process**.
 
-| Terminal | Command | Port |
-|----------|---------|------|
-| 1 | `uvicorn servers.hla_server:app --port 8101 --reload` | 8101 |
-| 2 | `uvicorn servers.tcr_server:app --port 8102 --reload` | 8102 |
-| 3 | `uvicorn servers.vdjdb_server:app --port 8103 --reload` | 8103 |
-| 4 | `uvicorn servers.iedb_server:app --port 8104 --reload` | 8104 |
-| 5 | `PYTHONPATH=src uvicorn tcr_explorer.api:app --port 8000 --reload` | 8000 |
+### As an MCP server (recommended)
 
-Start the tool servers (8101–8104) before the main API (8000).
+Point your own assistant at TCR Explorer over MCP and ask questions in plain language. See [Connect your assistant](#connect-your-assistant). Nothing else to start.
 
-### Health check
+### As a web app and REST API
+
+```bash
+PYTHONPATH=src uvicorn tcr_explorer.api:app --port 8000
+```
+
+Then open the query box at <http://localhost:8000/ui>, or call the REST API directly.
 
 ```bash
 curl http://localhost:8000/health
 # {"status":"ok"}
 ```
 
+That is the whole tool. The five separate servers described in older revisions are not required.
+
 ---
 
-## `/search` endpoint
+## Connect your assistant
 
-**POST** `http://localhost:8000/search`
+TCR Explorer ships an MCP server (`tcr_explorer.mcp_server:main`, console entry point `tcr-explorer-mcp`) so an assistant can query the databases and run the analyses directly.
 
-All fields are optional — omit any you don't need.
+Add this to your assistant's MCP configuration:
 
 ```json
-{
-  "source": "hla | tcr | vdjdb | iedb",
-  "species": "human | mouse | other",
-  "gene_name": "HLA-A",
-  "region": "exon2",
-  "sequence_contains": "GILG",
-  "antigen_epitope": "GILGFVFTL",
-  "limit": 50
-}
+{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
 ```
 
-### Examples
+Or paste this prompt into your assistant to have it set the connection up for you:
 
-**HLA allele sequences (EBI IMGT/HLA)**
-```bash
-curl -s -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"source":"hla","species":"human","gene_name":"HLA-A","limit":5}'
+```
+Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, align_tcr_genes, and ask_tcr. After adding it, confirm the connection and suggest three example questions I can ask.
 ```
 
-**TCR V-gene sequences (NCBI Entrez)**
-```bash
-curl -s -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"source":"tcr","species":"human","gene_name":"TRBV12-3","limit":5}'
-```
+Until the package is published to PyPI, the git form works instead: `uvx --from git+<your-repo-url> tcr-explorer-mcp`.
 
-**VDJdb CDR3 sequences filtered by antigen epitope**
-```bash
-curl -s -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"source":"vdjdb","antigen_epitope":"GILGFVFTL","limit":10}'
-```
-
-**IEDB T-cell assay data**
-```bash
-curl -s -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"source":"iedb","gene_name":"HLA-A*02:01","sequence_contains":"GILG","limit":10}'
-```
-
-### Table output (CSV or Markdown)
-
-```bash
-# CSV
-curl -s -X POST "http://localhost:8000/search/table?fmt=csv" \
-  -H "Content-Type: application/json" \
-  -d '{"source":"vdjdb","limit":10}'
-
-# Markdown
-curl -s -X POST "http://localhost:8000/search/table?fmt=md" \
-  -H "Content-Type: application/json" \
-  -d '{"source":"hla","species":"human","limit":5}'
-```
+The exposed read only tools are `retrieve_tcr_records`, `assign_tcr_alleles`, `get_tcr_dossier`, `find_similar_tcrs`, `align_tcr_genes`, and `ask_tcr`.
 
 ---
 
-## CDR1 / CDR2 prediction
+## REST API
 
-**GET** `http://localhost:8000/predict/cdr`
+All of these run in process, no external services.
 
-Returns germline CDR1 and CDR2 amino acid (and nucleotide) sequences for a TCR V gene
-using stitchr IMGT data. Requires `stitchrdl -s human` to have been run.
+### Unified query box
+
+**POST** `/v1/tcr/query` routes a single input (a CDR3, a full chain, a gene name, a record id, or a phrase) to the right tool.
+
+```bash
+curl -s -X POST http://localhost:8000/v1/tcr/query \
+  -H "Content-Type: application/json" \
+  -d '{"query":"CASSLGGAGGTDTQYF","species":"human"}'
+```
+
+### Germline assignment
+
+**POST** `/v1/tcr/assign` assigns a TCR sequence to V and J alleles.
+
+```bash
+curl -s -X POST http://localhost:8000/v1/tcr/assign \
+  -H "Content-Type: application/json" \
+  -d '{"sequence":"CASSLGGAGGTDTQYF","species":"human"}'
+```
+
+### Records retrieval
+
+**POST** `/v1/tcr/records` searches the harmonized records index.
+
+```bash
+curl -s -X POST http://localhost:8000/v1/tcr/records \
+  -H "Content-Type: application/json" \
+  -d '{"cdr3":"CASSLGGAGGTDTQYF","species":"human","limit":20}'
+```
+
+### Chain reconstruction
+
+**POST** `/reconstruct` builds a full membrane bound chain. Provide V, J, and CDR3, or a CDR3 alone (V and J are inferred from the database).
+
+```bash
+curl -s -X POST http://localhost:8000/reconstruct \
+  -H "Content-Type: application/json" \
+  -d '{"cdr3_aa":"CASSLGGAGGTDTQYF","species":"human"}'
+```
+
+### CDR1 / CDR2 prediction
+
+**GET** `/predict/cdr` returns germline CDR1 and CDR2 for a TCR V gene from IMGT germline data.
 
 ```bash
 curl "http://localhost:8000/predict/cdr?v_gene=TRBV12-3&species=human"
 ```
 
-Response:
-```json
-{
-  "v_gene": "TRBV12-3",
-  "species": "human",
-  "allele": "TRBV12-3*01",
-  "cdr1_aa": "SGHDN",
-  "cdr2_aa": "FNNNVP",
-  "cdr1_nt": "...",
-  "cdr2_nt": "..."
-}
-```
-
 ---
 
-## Bulk VDJdb ingest
+## Optional: live enrichment stack
 
-Upload a VDJdb TSV export to populate the local SQLite index:
-
-```bash
-curl -s -X POST http://localhost:8000/ingest/vdjdb \
-  -F "file=@/path/to/vdjdb_full.tsv"
-```
-
-Download VDJdb data from <https://vdjdb.cdr3.net> → Browse → Export TSV.
-
-After ingesting, search the local index without hitting the upstream API:
+The core reads from a vendored, harmonized snapshot. If you also want **live** proxying to EBI IMGT/HLA and NCBI Entrez, live VDJdb and IEDB queries, or the ML scoring backends, start the enrichment services. Do this with **one command**, never five terminals:
 
 ```bash
-curl -s -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"source":"vdjdb","antigen_epitope":"NLVPMVATV","limit":20}'
+docker-compose up
 ```
 
----
+This launches the tool servers and the main API together on a shared network. When these services are absent, the endpoints that would use them degrade gracefully to the vendored data rather than failing.
 
-## Natural-language query
-
-Requires an OpenAI-compatible LLM running locally (e.g. LM Studio). Falls back to
-a heuristic keyword parser when no LLM is available.
-
-```bash
-curl -s -X POST http://localhost:8000/query/nl \
-  -H "Content-Type: application/json" \
-  -d '{"query":"find CDR3 sequences for TRBV12 in human against influenza", "limit":10}'
-```
-
----
-
-## Streamlit UI
-
-```bash
-streamlit run src/tcr_explorer/frontend.py
-```
-
-Opens at <http://localhost:8501> with two pages:
-
-- **Search** — filter by source/species/gene/CDR3/epitope, results table with CDR3 + CDR1 + CDR2 + antigen_epitope columns, CSV download
-- **CDR Predict** — look up germline CDR1/CDR2 for any TCR V gene
+The legacy federated `/search` endpoint (`{"source":"hla|tcr|vdjdb|iedb", ...}`) is served by this stack. Whether the live federation still earns its place, given the vendored snapshot, is an open design question and is not needed for day to day use.
 
 ---
 
 ## Environment variables
 
-All are optional; defaults work for local development.
+All are optional. Defaults give you the single process core.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HLA_SERVER_URL` | `http://127.0.0.1:8101` | HLA tool server URL |
-| `TCR_SERVER_URL` | `http://127.0.0.1:8102` | TCR tool server URL |
-| `VDJDB_SERVER_URL` | `http://127.0.0.1:8103` | VDJdb tool server URL |
-| `IEDB_SERVER_URL` | `http://127.0.0.1:8104` | IEDB tool server URL |
-| `IMGT_DB_PATH` | `./imgt.db` | SQLite database file path |
-| `NCBI_API_KEY` | *(empty)* | NCBI API key — raises rate limit to 10 req/s |
-| `VDJDB_DATA_FILE` | `examples/vdjdb_seed.csv` | Local VDJdb seed/export file |
-| `VDJDB_API_URL` | VDJdb public API | Set to `""` to disable upstream VDJdb calls |
-| `IEDB_API_URL` | IEDB Query API | Override IEDB endpoint |
-| `IMGT_API_URL` | `http://127.0.0.1:8000` | Main API URL (used by Streamlit frontend) |
-| `LMSTUDIO_BASE_URL` | `http://127.0.0.1:1234/v1` | LM Studio OpenAI-compatible endpoint |
-| `LMSTUDIO_MODEL` | `local-model` | LM Studio model ID |
+| `RECORDS_INDEX_PATH` | `data/records_index.parquet` | Vendored harmonized records index |
+| `HLA_SERVER_URL` | `http://127.0.0.1:8101` | HLA tool server (optional live stack) |
+| `TCR_SERVER_URL` | `http://127.0.0.1:8102` | TCR tool server (optional live stack) |
+| `VDJDB_SERVER_URL` | `http://127.0.0.1:8103` | VDJdb tool server (optional live stack) |
+| `IEDB_SERVER_URL` | `http://127.0.0.1:8104` | IEDB tool server (optional live stack) |
+| `NCBI_API_KEY` | *(empty)* | NCBI API key, raises the rate limit to 10 req/s |
+| `LLM_BASE_URL` | *(empty)* | OpenAI compatible endpoint for the free text `ask` path (falls back to a heuristic parser when unset) |
+| `LLM_MODEL` | `local-model` | Model id for the `ask` path |
 
 ---
 
@@ -217,41 +176,22 @@ PYTHONPATH=src pytest tests/ -v
 
 ---
 
-## Connect your assistant
-
-TCR Explorer ships an MCP server (`tcr_explorer.mcp_server:main`, console entry point `tcr-explorer-mcp`) so an assistant can query IMGT, VDJdb, IEDB, and IPD-MHC directly.
-
-Add this to your assistant's MCP configuration:
-
-```json
-{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
-```
-
-Or paste this prompt into your assistant to have it set the connection up for you:
-
-```
-Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.
-```
-
-Until the package is published, the git form works instead: `uvx --from git+<your-repo-url> tcr-explorer-mcp`.
-
----
-
 ## Architecture
 
+The core is a set of single source pure functions (records retrieval, germline assignment, reconstruction, dossiers, similarity) that read from vendored data. The REST API, the MCP server, and the web query box all call these same functions in one process.
+
 ```
-                        ┌─────────────────────┐
-                        │  Main API  :8000     │
-                        │  src/tcr_explorer/api.py │
-                        └──────────┬──────────┘
-              ┌───────────┬────────┴────────┬───────────┐
-              ▼           ▼                 ▼           ▼
-        HLA :8101   TCR :8102        VDJdb :8103  IEDB :8104
-        (EBI API)  (NCBI Entrez)   (seed CSV +   (IEDB Query
-                                    VDJdb API +    API proxy)
-                                    CDR enricher)
+        MCP server        REST API + /ui query box
+             \                    /
+              \                  /
+        single source pure functions
+        (records, assign, reconstruct,
+         dossier, similar)
+                   |
+        vendored data (records index parquet,
+        IMGT germline)
 ```
 
-The main API merges results from the local SQLite index and the matching tool server.
-Tool servers are independently startable — they have no shared state or imports from
-the main API package.
+The optional live enrichment services (EBI IMGT/HLA, NCBI Entrez, live VDJdb and IEDB, ML scoring) sit beside this core and are reached over HTTP only when running. They are launched together with `docker-compose up` and are never required for the core.
+
+IMGT (IMGT/HLA, IMGT/GENE-DB, IMGT germline, IMGT numbering) is a data source cited throughout. TCR Explorer is an independent tool and is not affiliated with IMGT.
