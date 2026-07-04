@@ -82,21 +82,6 @@ class _FakeToolServerClient:
 
 _stub("tcr_explorer.mcp_clients", ToolServerClient=_FakeToolServerClient)
 
-
-class _FakeSearchIndex:
-    def __init__(self, path: str = "") -> None:
-        pass
-
-    def search(self, req):
-        from tcr_explorer.models import SearchResponse
-        return SearchResponse(total=0, records=[], limit=50, offset=0)
-
-    def upsert_many(self, records):
-        return 0
-
-
-_stub_if_missing("tcr_explorer.search_index", SearchIndex=_FakeSearchIndex)
-
 _stub_if_missing("tcr_explorer.file_ingest",
       parse_file=lambda raw, filename, source=None, species="other": [],
       parse_vdjdb_tsv=lambda raw: [])

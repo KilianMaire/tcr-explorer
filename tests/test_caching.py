@@ -1,4 +1,4 @@
-"""Tests for in-memory LRU caches in hla_server and tcr_server."""
+"""Tests for the in-memory LRU cache in hla_server."""
 from __future__ import annotations
 
 import sys
@@ -9,7 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import servers.hla_server as hla_mod
-import servers.tcr_server as tcr_mod
 
 
 # ---------------------------------------------------------------------------
@@ -90,25 +89,3 @@ def test_hla_cache_populates_on_manual_insert():
     hla_mod._EBI_CACHE[key] = [{"source": "hla", "sequence": "ATGC"}]
     assert key in hla_mod._EBI_CACHE
     hla_mod._EBI_CACHE.clear()
-
-
-# ---------------------------------------------------------------------------
-# TCR cache module-level attributes
-# ---------------------------------------------------------------------------
-
-def test_tcr_cache_is_ordered_dict():
-    assert isinstance(tcr_mod._TCR_CACHE, OrderedDict)
-
-
-def test_tcr_cache_max_is_positive_int():
-    assert isinstance(tcr_mod._TCR_CACHE_MAX, int)
-    assert tcr_mod._TCR_CACHE_MAX > 0
-
-
-def test_tcr_cache_populates_on_manual_insert():
-    """Directly exercise the cache dict used by _fetch_ncbi_imgt."""
-    tcr_mod._TCR_CACHE.clear()
-    key = ("TRBV12-3", "human", "")
-    tcr_mod._TCR_CACHE[key] = [{"source": "tcr", "sequence": "ATGCTA"}]
-    assert key in tcr_mod._TCR_CACHE
-    tcr_mod._TCR_CACHE.clear()

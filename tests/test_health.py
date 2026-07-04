@@ -1,4 +1,4 @@
-"""Tests for /health endpoint on all five tool servers."""
+"""Tests for /health endpoint on the hla and mhc tool servers."""
 from __future__ import annotations
 
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-# Ensure src/ is importable (needed by vdjdb_server's cdr_enricher import)
+# Ensure src/ is importable (the servers import cdr_enricher).
 _src = Path(__file__).resolve().parent.parent / "src"
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
@@ -17,24 +17,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 @pytest.fixture()
 def hla_client():
     from servers.hla_server import app
-    return TestClient(app)
-
-
-@pytest.fixture()
-def tcr_client():
-    from servers.tcr_server import app
-    return TestClient(app)
-
-
-@pytest.fixture()
-def vdjdb_client():
-    from servers.vdjdb_server import app
-    return TestClient(app)
-
-
-@pytest.fixture()
-def iedb_client():
-    from servers.iedb_server import app
     return TestClient(app)
 
 
@@ -50,9 +32,6 @@ def mhc_client():
 
 @pytest.mark.parametrize("fixture_name,expected_server", [
     ("hla_client", "hla"),
-    ("tcr_client", "tcr"),
-    ("vdjdb_client", "vdjdb"),
-    ("iedb_client", "iedb"),
     ("mhc_client", "mhc"),
 ])
 def test_health_returns_ok_and_server_name(fixture_name, expected_server, request):
