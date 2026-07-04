@@ -7,8 +7,10 @@ clear message when the data is absent.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 from . import data_paths, data_sources
 from .records_build import build_index
@@ -26,15 +28,57 @@ def ensure_ready() -> None:
         )
 
 
+def _germline_present(species: str) -> bool:
+    """True if the stitchr Data dir the enricher reads at query time actually
+    holds this species' germline FASTA. This is the honest post-condition:
+    stitchrdl exits 0 even when it downloaded nothing, so we verify the files
+    the runtime will look for, not the child's exit code."""
+    from .cdr_enricher import _stitchr_data_dir
+
+    d = _stitchr_data_dir()
+    if d is None:
+        return False
+    return next((d / species.upper()).glob("*.fasta"), None) is not None
+
+
+def _stitchrdl_cmd() -> list[str]:
+    # stitchrdl.py ships NO `if __name__ == "__main__"` guard, so
+    # `python -m Stitchr.stitchrdl` imports the module and exits WITHOUT running
+    # main() -- a silent no-op that never downloads. Its declared entry point is
+    # the `stitchrdl` console script (Stitchr.stitchrdl:main), a sibling of the
+    # current interpreter. Prefer it; fall back to invoking main() explicitly so
+    # it still works if the console script is missing.
+    stitchrdl = Path(sys.executable).parent / "stitchrdl"
+    if stitchrdl.exists():
+        return [str(stitchrdl)]
+    return [sys.executable, "-c", "from Stitchr.stitchrdl import main; main()"]
+
+
+# stitchrdl scrapes IMGT/GENE-DB through IMGTgeneDL, which can hang for a long
+# time when IMGT is slow or unreachable. Bound it so `tcr-explorer-refresh`
+# cannot freeze forever; overridable for slow links.
+_STITCHRDL_TIMEOUT = int(os.environ.get("TCR_EXPLORER_STITCHRDL_TIMEOUT", "600"))
+
+
 def _run_stitchrdl() -> dict:
-    # Invoke stitchr's downloader through the current interpreter so it resolves
-    # regardless of PATH (a venv console script is not on PATH unless activated).
+    # stitchrdl shells out to `IMGTgeneDL` via subprocess with shell=True, which
+    # resolves against PATH, so put the interpreter's bin dir (where the venv's
+    # IMGTgeneDL lives) first. Without this the child's IMGTgeneDL call silently
+    # fails when the venv is not activated.
     out = {}
+    cmd = _stitchrdl_cmd()
+    bindir = str(Path(sys.executable).parent)
+    env = dict(os.environ)
+    env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
     for species in ("human", "mouse"):
         try:
-            subprocess.run([sys.executable, "-m", "Stitchr.stitchrdl", "-s", species],
-                           check=True, capture_output=True, text=True)
-            out[species] = True
+            subprocess.run(cmd + ["-s", species], check=True,
+                           capture_output=True, text=True, env=env,
+                           timeout=_STITCHRDL_TIMEOUT)
+            # Do NOT trust the exit code: verify the FASTA actually landed.
+            out[species] = _germline_present(species)
+        except subprocess.TimeoutExpired:
+            out[species] = f"failed: IMGT germline download timed out after {_STITCHRDL_TIMEOUT}s"
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             out[species] = f"failed: {exc}"
     return out

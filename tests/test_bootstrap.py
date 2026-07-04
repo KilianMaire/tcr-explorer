@@ -60,6 +60,40 @@ def test_refresh_partial_keeps_existing_index(monkeypatch, tmp_path):
     assert data_paths.records_index_path().read_bytes() == b"PRIOR"  # untouched
 
 
+def test_stitchrdl_cmd_is_not_the_no_op_module_form():
+    # `python -m Stitchr.stitchrdl` is a silent no-op: stitchrdl.py has no
+    # `if __name__ == "__main__"` guard, so importing it never runs main() and
+    # nothing downloads. Guard against regressing to that form.
+    cmd = bootstrap._stitchrdl_cmd()
+    assert "-m" not in cmd
+    assert not (len(cmd) >= 2 and cmd[1] == "-m"), "must not use the no-op -m form"
+
+
+def test_run_stitchrdl_does_not_trust_exit_code(monkeypatch, tmp_path):
+    # stitchrdl exits 0 even when it downloaded nothing. _run_stitchrdl must
+    # report success only when the species FASTA actually landed, not on exit 0.
+    from tcr_explorer import cdr_enricher
+    monkeypatch.setattr(bootstrap.subprocess, "run",
+                        lambda *a, **k: None)  # "succeeds", writes nothing
+    empty = tmp_path / "Data"
+    empty.mkdir()
+    monkeypatch.setattr(cdr_enricher, "_stitchr_data_dir", lambda: empty)
+    out = bootstrap._run_stitchrdl()
+    assert out["human"] is False and out["mouse"] is False
+
+
+def test_run_stitchrdl_true_when_fasta_present(monkeypatch, tmp_path):
+    from tcr_explorer import cdr_enricher
+    data = tmp_path / "Data"
+    for sp in ("HUMAN", "MOUSE"):
+        (data / sp).mkdir(parents=True)
+        (data / sp / "TRB.fasta").write_text(">x\nACGT\n")
+    monkeypatch.setattr(bootstrap.subprocess, "run", lambda *a, **k: None)
+    monkeypatch.setattr(cdr_enricher, "_stitchr_data_dir", lambda: data)
+    out = bootstrap._run_stitchrdl()
+    assert out["human"] is True and out["mouse"] is True
+
+
 def test_load_records_index_does_not_cache_absent(monkeypatch, tmp_path):
     from tcr_explorer import records as R
     monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
