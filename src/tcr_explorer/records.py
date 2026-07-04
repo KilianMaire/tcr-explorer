@@ -140,7 +140,7 @@ def build_record(
 # Retrieval engine
 # ---------------------------------------------------------------------------
 _DEFAULT_RECORDS_INDEX = str(
-    Path(__file__).resolve().parent.parent.parent / "data" / "records_index.parquet"
+    Path(__file__).resolve().parent / "data" / "records_index.parquet"
 )
 _ID_RE = re.compile(r"^(vdjdb|iedb|mcpas|tcr3d):")
 _MAX_NEIGHBOURS = 25

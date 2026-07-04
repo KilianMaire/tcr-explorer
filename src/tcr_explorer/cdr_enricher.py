@@ -75,6 +75,12 @@ def _stitchr_data_dir() -> Optional[Path]:
     for p in user_lib.glob("*/lib/python/site-packages/Data"):
         if p.is_dir() and _looks_like_stitchr_data(p):
             return p
+    # Fall back to the germline vendored inside this package (ships in the wheel,
+    # so an installed tool works with no stitchrdl step). A real stitchr install
+    # above still takes precedence.
+    vendored = Path(__file__).resolve().parent / "data" / "germline"
+    if vendored.is_dir() and _looks_like_stitchr_data(vendored):
+        return vendored
     return None
 
 

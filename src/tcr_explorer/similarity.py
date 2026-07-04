@@ -10,7 +10,7 @@ import pandas as pd
 
 from .dossier_models import DossierWarning, Neighbour
 
-_DEFAULT_INDEX = str(Path(__file__).resolve().parent.parent.parent / "data" / "records_index.parquet")
+_DEFAULT_INDEX = str(Path(__file__).resolve().parent / "data" / "records_index.parquet")
 _BLOSUM_PATH = Path(__file__).resolve().parent / "data" / "blosum62.json"
 _GAP = 8
 _NTRIM, _CTRIM = 3, 2  # trim conserved CDR3 ends (tcrdist convention)
