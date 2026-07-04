@@ -63,7 +63,9 @@ That is the whole tool. The five separate servers described in older revisions a
 
 ## Connect your assistant
 
-TCR Explorer ships an MCP server (`tcr_explorer.mcp_server:main`, console entry point `tcr-explorer-mcp`) so an assistant can query the databases and run the analyses directly.
+TCR Explorer ships an MCP server (`tcr_explorer.mcp_server:main`, console entry point `tcr-explorer-mcp`) so an assistant can query the databases and run the analyses directly. The records snapshot and the germline ship inside the package, so there is nothing to download first (no `stitchrdl` step).
+
+This targets Claude Desktop and Claude Code, which run a local stdio MCP server from the config below. ChatGPT does not run local stdio MCP servers the same way, so use Claude for the paste and go flow.
 
 Add this to your assistant's MCP configuration:
 
