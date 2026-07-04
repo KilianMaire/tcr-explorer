@@ -25,6 +25,12 @@ def raw_dir() -> Path:
     return data_dir() / "raw"
 
 
+def germline_dir() -> Path:
+    """Where an opt-in `tcr-explorer-refresh --germline` writes a fresh IMGT
+    germline. The germline resolver prefers this over the bundled copy."""
+    return data_dir() / "germline"
+
+
 def records_index_path() -> Path:
     return data_dir() / "records_index.parquet"
 

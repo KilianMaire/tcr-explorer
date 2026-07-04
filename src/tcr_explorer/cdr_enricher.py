@@ -62,20 +62,39 @@ def _looks_like_stitchr_data(candidate: Path) -> bool:
     )
 
 
-def _stitchr_data_dir() -> Optional[Path]:
-    """Return stitchr Data directory, or None if stitchr is not installed."""
-    # Stitchr installs to a user or system site-packages directory.
-    # We probe sys.path entries for the Data folder it creates.
+def _packaged_germline_dir() -> Path:
+    """The IMGT germline bundled in the package (CC BY 4.0). Always present."""
+    return Path(__file__).resolve().parent / "data" / "germline"
+
+
+def _native_stitchr_data_dir() -> Optional[Path]:
+    """Where stitchr/stitchrdl itself writes its Data (site-packages `Data` or a
+    pip --user location). Used only by the opt-in germline refresh to find the
+    freshly downloaded copy; query-time reads go through _stitchr_data_dir."""
     for sp in sys.path:
         candidate = Path(sp) / "Data"
         if candidate.is_dir() and _looks_like_stitchr_data(candidate):
             return candidate
-    # Also try the known pip --user install location
     user_lib = Path.home() / "Library" / "Python"
     for p in user_lib.glob("*/lib/python/site-packages/Data"):
         if p.is_dir() and _looks_like_stitchr_data(p):
             return p
     return None
+
+
+def _stitchr_data_dir() -> Optional[Path]:
+    """Resolve the germline Data dir the enricher/reconstructor read at query time.
+
+    Order: a user-refreshed copy (opt-in `tcr-explorer-refresh --germline`), then
+    the germline bundled in the package (always present, so the tool works offline
+    and without IMGT), then a native stitchr install (back-compat). Returns None
+    only if none look like stitchr germline data."""
+    from . import data_paths
+
+    for c in (data_paths.germline_dir(), _packaged_germline_dir()):
+        if c.is_dir() and _looks_like_stitchr_data(c):
+            return c
+    return _native_stitchr_data_dir()
 
 
 def _load_v_region_map(chain: str, species: str) -> dict[str, str]:

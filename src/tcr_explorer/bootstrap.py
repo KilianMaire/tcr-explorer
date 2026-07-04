@@ -1,13 +1,15 @@
-"""First-run data bootstrap: download every source, build the index, fetch germline.
+"""First-run data bootstrap: download the record sources and build the index.
 
 Downloading is only ever done here, via the explicit `tcr-explorer-refresh`
 command. Queries never trigger a download; they call ensure_ready() and get a
-clear message when the data is absent.
+clear message when the data is absent. The IMGT germline is bundled in the
+package (CC BY 4.0); `tcr-explorer-refresh --germline` freshens it from IMGT.
 """
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -29,16 +31,31 @@ def ensure_ready() -> None:
 
 
 def _germline_present(species: str) -> bool:
-    """True if the stitchr Data dir the enricher reads at query time actually
-    holds this species' germline FASTA. This is the honest post-condition:
-    stitchrdl exits 0 even when it downloaded nothing, so we verify the files
-    the runtime will look for, not the child's exit code."""
-    from .cdr_enricher import _stitchr_data_dir
+    """True if stitchrdl's OWN Data dir now holds this species' germline FASTA.
+    This is the honest post-condition of a germline download: stitchrdl exits 0
+    even when it downloaded nothing, so we verify the files it should have
+    written, not the child's exit code. We check stitchr's native dir (not the
+    query-time resolver, which would report True from the bundled copy)."""
+    from .cdr_enricher import _native_stitchr_data_dir
 
-    d = _stitchr_data_dir()
+    d = _native_stitchr_data_dir()
     if d is None:
         return False
     return next((d / species.upper()).glob("*.fasta"), None) is not None
+
+
+def _bundled_germline_release() -> str:
+    """The IMGT/GENE-DB release string of the germline bundled in the package."""
+    from .cdr_enricher import _packaged_germline_dir
+
+    prod = _packaged_germline_dir() / "HUMAN" / "data-production-date.tsv"
+    try:
+        for line in prod.read_text().splitlines():
+            if line.lower().startswith("release"):
+                return line.split("\t", 1)[-1].strip()
+    except OSError:
+        pass
+    return "unknown"
 
 
 def _stitchrdl_cmd() -> list[str]:
@@ -119,13 +136,46 @@ def refresh(force: bool = False) -> dict:
     meta = build_index(str(raw), str(data_paths.records_index_path()),
                        str(data_paths.meta_path()))
     _augment_meta_with_status(data_paths.meta_path(), status)
-    germline = _run_stitchrdl()
+    # Germline is bundled (CC BY 4.0), so the default refresh never touches IMGT.
     return {"built": True, "complete": all_ok, "sources": status,
             "rows_total": meta.get("rows_total", 0), "per_source": meta.get("per_source", {}),
-            "germline": germline, "data_dir": data_dir}
+            "germline": {"source": "bundled", "release": _bundled_germline_release()},
+            "data_dir": data_dir}
+
+
+def refresh_germline() -> dict:
+    """Opt-in: download a fresh IMGT germline via stitchrdl and copy it into the
+    user data dir, where the germline resolver prefers it over the bundled copy.
+    The bundled germline means the tool already works without ever running this."""
+    from .cdr_enricher import _native_stitchr_data_dir
+
+    ran = _run_stitchrdl()
+    native = _native_stitchr_data_dir()
+    dest = data_paths.germline_dir()
+    copied: dict[str, bool] = {}
+    if native is not None:
+        for species in ("HUMAN", "MOUSE"):
+            src = native / species
+            if next(src.glob("*.fasta"), None) is not None:
+                shutil.copytree(src, dest / species, dirs_exist_ok=True)
+                copied[species] = True
+    return {"ran": ran, "copied_to": str(dest) if copied else None, "species": copied}
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="tcr-explorer-refresh",
+        description="Download the TCR record datasets and build the local index. "
+                    "The IMGT germline is bundled with the package; pass --germline "
+                    "to also freshen it from IMGT/GENE-DB.")
+    parser.add_argument(
+        "--germline", action="store_true",
+        help="Also download a fresh IMGT germline into the user data dir (opt-in; "
+             "needs IMGT/GENE-DB reachable). The bundled germline is used otherwise.")
+    args = parser.parse_args()
+
     print("Downloading TCR datasets and building the index...", file=sys.stderr)
     summary = refresh()
     for src, r in summary["sources"].items():
@@ -135,8 +185,19 @@ def main() -> None:
         print(f"Refresh aborted: {summary.get('reason')}. Existing data left unchanged.",
               file=sys.stderr)
         raise SystemExit(1)
-    print(f"  germline: {summary['germline']}", file=sys.stderr)
+    print(f"  germline: bundled IMGT release {summary['germline']['release']}", file=sys.stderr)
     print(f"Built {summary['rows_total']} records into {summary['data_dir']}", file=sys.stderr)
+
+    if args.germline:
+        print("Refreshing IMGT germline from IMGT/GENE-DB (opt-in)...", file=sys.stderr)
+        g = refresh_germline()
+        print(f"  germline download: {g['ran']}", file=sys.stderr)
+        if g["copied_to"]:
+            print(f"  fresh germline written to {g['copied_to']}", file=sys.stderr)
+        else:
+            print("  germline refresh produced nothing; keeping the bundled copy.",
+                  file=sys.stderr)
+
     if not summary.get("complete", True):
         print("Warning: some sources failed; index built from the rest. Re-run to complete.",
               file=sys.stderr)

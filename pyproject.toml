@@ -37,7 +37,13 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-tcr_explorer = ["data/*.json"]
+tcr_explorer = [
+    "data/*.json",
+    "data/germline/*.md",
+    "data/germline/*/*.fasta",
+    "data/germline/*/*.tsv",
+    "data/germline/*/*.txt",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

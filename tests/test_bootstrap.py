@@ -71,13 +71,14 @@ def test_stitchrdl_cmd_is_not_the_no_op_module_form():
 
 def test_run_stitchrdl_does_not_trust_exit_code(monkeypatch, tmp_path):
     # stitchrdl exits 0 even when it downloaded nothing. _run_stitchrdl must
-    # report success only when the species FASTA actually landed, not on exit 0.
+    # report success only when the species FASTA actually landed in stitchr's
+    # native Data dir, not on exit 0.
     from tcr_explorer import cdr_enricher
     monkeypatch.setattr(bootstrap.subprocess, "run",
                         lambda *a, **k: None)  # "succeeds", writes nothing
     empty = tmp_path / "Data"
     empty.mkdir()
-    monkeypatch.setattr(cdr_enricher, "_stitchr_data_dir", lambda: empty)
+    monkeypatch.setattr(cdr_enricher, "_native_stitchr_data_dir", lambda: empty)
     out = bootstrap._run_stitchrdl()
     assert out["human"] is False and out["mouse"] is False
 
@@ -89,9 +90,66 @@ def test_run_stitchrdl_true_when_fasta_present(monkeypatch, tmp_path):
         (data / sp).mkdir(parents=True)
         (data / sp / "TRB.fasta").write_text(">x\nACGT\n")
     monkeypatch.setattr(bootstrap.subprocess, "run", lambda *a, **k: None)
-    monkeypatch.setattr(cdr_enricher, "_stitchr_data_dir", lambda: data)
+    monkeypatch.setattr(cdr_enricher, "_native_stitchr_data_dir", lambda: data)
     out = bootstrap._run_stitchrdl()
     assert out["human"] is True and out["mouse"] is True
+
+
+def test_packaged_germline_is_bundled():
+    # The germline ships with the package (CC BY 4.0), so germline features work
+    # offline and without IMGT.
+    from tcr_explorer.cdr_enricher import _packaged_germline_dir
+    d = _packaged_germline_dir()
+    for sp in ("HUMAN", "MOUSE"):
+        trb = d / sp / "TRB.fasta"
+        assert trb.exists() and trb.stat().st_size > 0, f"missing bundled {sp}/TRB.fasta"
+
+
+def test_stitchr_data_dir_resolves_to_bundled_offline(monkeypatch, tmp_path):
+    # With no user germline and no native stitchr install, the resolver still
+    # finds germline: the bundled copy.
+    from tcr_explorer import cdr_enricher
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))  # no germline/ subdir
+    monkeypatch.setattr(cdr_enricher, "_native_stitchr_data_dir", lambda: None)
+    resolved = cdr_enricher._stitchr_data_dir()
+    assert resolved == cdr_enricher._packaged_germline_dir()
+
+
+def test_user_germline_overrides_bundled(monkeypatch, tmp_path):
+    from tcr_explorer import cdr_enricher, data_paths
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
+    g = data_paths.germline_dir()
+    (g / "HUMAN").mkdir(parents=True)
+    (g / "HUMAN" / "TRB.fasta").write_text(">x\nACGT\n")
+    (g / "MOUSE").mkdir(parents=True)
+    (g / "MOUSE" / "TRB.fasta").write_text(">x\nACGT\n")
+    assert cdr_enricher._stitchr_data_dir() == g
+
+
+def test_default_refresh_never_touches_imgt(monkeypatch, tmp_path):
+    # Germline is bundled, so the default refresh must not invoke stitchrdl.
+    monkeypatch.setenv("TCR_EXPLORER_DATA", str(tmp_path))
+
+    def boom():
+        raise AssertionError("default refresh must not run stitchrdl")
+
+    monkeypatch.setattr(bootstrap, "_run_stitchrdl", boom)
+
+    def fake_mcpas(raw):
+        raw.mkdir(parents=True, exist_ok=True)
+        (raw / "mcpas.csv").write_text(
+            "CDR3.alpha.aa,CDR3.beta.aa,Species,TRBV,TRBJ\n,CASSF,Human,TRBV19,TRBJ2-1\n")
+        return data_sources.DownloadResult("mcpas", True, str(raw / "mcpas.csv"), 1)
+
+    for name in ("download_vdjdb", "download_iedb", "download_tcr3d"):
+        monkeypatch.setattr(data_sources, name,
+                            lambda raw, s=name: data_sources.DownloadResult(s, False, error="skip"))
+    monkeypatch.setattr(data_sources, "download_mcpas", fake_mcpas)
+
+    summary = bootstrap.refresh()
+    assert summary["built"] is True
+    assert summary["germline"]["source"] == "bundled"
+    assert summary["germline"]["release"] != "unknown"
 
 
 def test_load_records_index_does_not_cache_absent(monkeypatch, tmp_path):

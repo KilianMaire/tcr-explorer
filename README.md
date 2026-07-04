@@ -4,9 +4,9 @@ A federated tool for T cell receptor analysis. It retrieves known TCR records (V
 
 ## How the data works
 
-The package ships **no datasets**. On first use you run `tcr-explorer-refresh` once. It downloads every dataset (VDJdb, IEDB, McPAS, TCR3d, plus the IMGT germline) from each source's own official endpoint into a local folder, then harmonizes them into a single records index. After that, everything runs in one process against that local index, offline, until you refresh again to pull fresh data.
+The package ships the IMGT germline (bundled under CC BY 4.0) but **no record datasets**. On first use you run `tcr-explorer-refresh` once. It downloads the four record datasets (VDJdb, IEDB, McPAS, TCR3d) from each source's own official endpoint into a local folder, then harmonizes them into a single records index. After that, everything runs in one process against that local index, offline, until you refresh again to pull fresh data.
 
-This design keeps the data current and means the tool never redistributes third party datasets. Each user fetches them directly from the source under that source's own terms. See [Data sources](#data-sources).
+This means the tool never redistributes the record datasets (their licenses vary): each user fetches those directly from the source under that source's own terms. The germline is different: IMGT is CC BY 4.0, which permits redistribution with attribution, so it is bundled and germline features work offline out of the box. To pull a newer IMGT germline yourself, run `tcr-explorer-refresh --germline`. See [Data sources](#data-sources).
 
 ## Requirements
 
@@ -33,7 +33,9 @@ pip install -e .
 tcr-explorer-refresh
 ```
 
-This downloads the datasets, builds the index into a local data folder (a platform specific user data directory, or wherever `TCR_EXPLORER_DATA` points), and fetches the IMGT germline. Re-run it any time to update. If a tool is used before the first refresh, it returns a clear message asking you to run this command.
+This downloads the four record datasets and builds the index into a local data folder (a platform specific user data directory, or wherever `TCR_EXPLORER_DATA` points). The IMGT germline is already bundled, so this step does not touch IMGT. Re-run it any time to update the records. If a tool is used before the first refresh, it returns a clear message asking you to run this command.
+
+To pull a fresher IMGT germline than the bundled one, run `tcr-explorer-refresh --germline` (needs IMGT/GENE-DB reachable). It writes into the local data folder, which the tool prefers over the bundled copy.
 
 ## Use it
 
@@ -151,13 +153,13 @@ All optional.
 
 ## Data sources
 
-TCR Explorer downloads and cites the following. It does not redistribute them; each is fetched on your machine from its official endpoint. Please cite the ones you use.
+TCR Explorer cites the following. The four record datasets are downloaded on your machine from their official endpoints and are not redistributed; the IMGT germline is bundled with the package under CC BY 4.0. Please cite the ones you use.
 
-- **VDJdb**. Goncharov M. et al. VDJdb in the pandemic era: a compendium of T cell receptors specific for SARS-CoV-2. Nature Methods, 2022. <https://github.com/antigenomics/vdjdb-db>
-- **IEDB** (CC BY 4.0). Vita R. et al. The Immune Epitope Database (IEDB): 2024 update. Nucleic Acids Research, 2025. <https://www.iedb.org>
-- **McPAS-TCR**. Tickotsky N. et al. McPAS-TCR: a manually curated catalogue of pathology associated T cell receptor sequences. Bioinformatics, 2017. <https://friedmanlab.weizmann.ac.il/McPAS-TCR/>
-- **TCR3d**. Lin V. et al. TCR3d 2.0: expanding the T cell receptor structure database. Nucleic Acids Research, 2025. <https://tcr3d.ibbr.umd.edu>
-- **IMGT germline** (CC BY 4.0). Lefranc M-P. et al. IMGT, the international ImMunoGeneTics information system. Fetched via stitchr. <https://www.imgt.org>
+- **VDJdb** (downloaded). Goncharov M. et al. VDJdb in the pandemic era: a compendium of T cell receptors specific for SARS-CoV-2. Nature Methods, 2022. <https://github.com/antigenomics/vdjdb-db>
+- **IEDB** (downloaded, CC BY 4.0). Vita R. et al. The Immune Epitope Database (IEDB): 2024 update. Nucleic Acids Research, 2025. <https://www.iedb.org>
+- **McPAS-TCR** (downloaded). Tickotsky N. et al. McPAS-TCR: a manually curated catalogue of pathology associated T cell receptor sequences. Bioinformatics, 2017. <https://friedmanlab.weizmann.ac.il/McPAS-TCR/>
+- **TCR3d** (downloaded). Lin V. et al. TCR3d 2.0: expanding the T cell receptor structure database. Nucleic Acids Research, 2025. <https://tcr3d.ibbr.umd.edu>
+- **IMGT germline** (bundled, CC BY 4.0, release 20268-7). Lefranc M-P. et al. IMGT, the international ImMunoGeneTics information system. Reformatted via stitchr and IMGTgeneDL (MIT). See `src/tcr_explorer/data/germline/ATTRIBUTION.md`. <https://www.imgt.org>
 
 ## Run tests
 
@@ -178,7 +180,7 @@ The core is a set of single source pure functions (records retrieval, germline a
          dossier, similar)
                    |
         local index (built by tcr-explorer-refresh
-        from the downloaded datasets + IMGT germline)
+        from the downloaded records) + bundled IMGT germline
 ```
 
 IMGT (IMGT/HLA, IMGT/GENE-DB, IMGT germline, IMGT numbering) is a data source cited throughout. TCR Explorer is an independent tool and is not affiliated with IMGT.

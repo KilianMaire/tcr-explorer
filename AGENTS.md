@@ -6,7 +6,7 @@ TCR Explorer retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns ge
 
 ## First, make the data ready
 
-The package ships no datasets. Before any tool can return results, the user runs one command that downloads every source (VDJdb, IEDB, McPAS, TCR3d, plus the IMGT germline) into a local folder and builds a single harmonized index.
+The package bundles the IMGT germline but ships no record datasets. Before any tool can return results, the user runs one command that downloads the four record sources (VDJdb, IEDB, McPAS, TCR3d) into a local folder and builds a single harmonized index. The germline is already present, so this step does not touch IMGT.
 
 ```bash
 pip install tcr-explorer          # or: uvx --from tcr-explorer ...
@@ -79,4 +79,4 @@ Named endpoints: `/v1/tcr/assign`, `/v1/tcr/records`, `/reconstruct`, and `/pred
 
 ## Data sources to cite
 
-When you report results, cite the sources the user relied on. Full references are in `README.md`. In short: VDJdb (Goncharov 2022), IEDB (Vita 2025, CC BY 4.0), McPAS-TCR (Tickotsky 2017), TCR3d (Lin 2025), IMGT germline (Lefranc, CC BY 4.0). TCR Explorer does not redistribute these; each user fetches them from the source on their own machine under that source's terms.
+When you report results, cite the sources the user relied on. Full references are in `README.md`. In short: VDJdb (Goncharov 2022), IEDB (Vita 2025, CC BY 4.0), McPAS-TCR (Tickotsky 2017), TCR3d (Lin 2025), IMGT germline (Lefranc, CC BY 4.0). The four record datasets are downloaded on the user's machine and not redistributed; the IMGT germline is bundled with the package under CC BY 4.0 (release 20268-7, attribution in `src/tcr_explorer/data/germline/ATTRIBUTION.md`).
