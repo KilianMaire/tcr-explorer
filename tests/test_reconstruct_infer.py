@@ -5,6 +5,8 @@ V/J are inferred by tallying deposited records that carry the exact same CDR3
 record count and the alternative pairings, so it is never confused with an
 explicit germline assignment.
 """
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +16,17 @@ from tcr_explorer.api import app
 from tcr_explorer.records_build import SCHEMA_COLUMNS
 
 client = TestClient(app)
+
+_FIXTURE = str(Path(__file__).resolve().parent / "fixtures" / "records_fixture.parquet")
+
+
+@pytest.fixture
+def fixture_index(monkeypatch):
+    """Point the default records index at the small committed fixture."""
+    monkeypatch.setenv("RECORDS_INDEX_PATH", _FIXTURE)
+    R.load_records_index.cache_clear()
+    yield
+    R.load_records_index.cache_clear()
 
 
 @pytest.fixture
@@ -56,8 +69,8 @@ def test_infer_empty_for_unknown_cdr3(idx):
     assert R.infer_vj_from_cdr3("", "human", index_path=idx) == []
 
 
-def test_reconstruct_endpoint_infers_from_cdr3_alone():
-    # CASSLGTEAFF is in the vendored index; top human pairing is TRBV4-1/TRBJ1-1
+def test_reconstruct_endpoint_infers_from_cdr3_alone(fixture_index):
+    # CASSLGTEAFF is in the fixture index; top human pairing is TRBV4-1/TRBJ1-1
     r = client.post("/reconstruct", json={"cdr3_aa": "CASSLGTEAFF", "species": "human"})
     assert r.status_code == 200
     b = r.json()

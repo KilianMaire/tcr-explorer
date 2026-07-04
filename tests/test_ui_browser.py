@@ -63,7 +63,7 @@ def server():
     idx = _ROOT / "data" / "unitcr_beta_index.parquet"
     if idx.exists():
         env["UNITCR_INDEX_PATH"] = str(idx)
-    records_idx = _ROOT / "data" / "records_index.parquet"
+    records_idx = _ROOT / "tests" / "fixtures" / "records_fixture.parquet"
     if records_idx.exists():
         env["RECORDS_INDEX_PATH"] = str(records_idx)
     proc = subprocess.Popen(

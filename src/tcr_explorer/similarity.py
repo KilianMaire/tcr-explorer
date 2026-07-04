@@ -10,7 +10,6 @@ import pandas as pd
 
 from .dossier_models import DossierWarning, Neighbour
 
-_DEFAULT_INDEX = str(Path(__file__).resolve().parent / "data" / "records_index.parquet")
 _BLOSUM_PATH = Path(__file__).resolve().parent / "data" / "blosum62.json"
 _GAP = 8
 _NTRIM, _CTRIM = 3, 2  # trim conserved CDR3 ends (tcrdist convention)
@@ -95,7 +94,8 @@ def find_similar_tcrs(
     if not isinstance(cdr3, str) or not isinstance(v_gene, str) or not isinstance(j_gene, str):
         raise TypeError("cdr3, v_gene, and j_gene must be strings")
     warnings: list[DossierWarning] = []
-    path = index_path or os.environ.get("UNITCR_INDEX_PATH") or _DEFAULT_INDEX
+    from .data_paths import records_index_path
+    path = index_path or os.environ.get("UNITCR_INDEX_PATH") or str(records_index_path())
     df = _load_index(path)
     if df is None:
         warnings.append(

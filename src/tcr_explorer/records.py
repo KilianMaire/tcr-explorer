@@ -139,16 +139,14 @@ def build_record(
 # ---------------------------------------------------------------------------
 # Retrieval engine
 # ---------------------------------------------------------------------------
-_DEFAULT_RECORDS_INDEX = str(
-    Path(__file__).resolve().parent / "data" / "records_index.parquet"
-)
 _ID_RE = re.compile(r"^(vdjdb|iedb|mcpas|tcr3d):")
 _MAX_NEIGHBOURS = 25
 _CHAIN_LABELS = {"TRA": "alpha", "TRB": "beta", "TRG": "gamma", "TRD": "delta"}
 
 
 def _default_records_index_path() -> str:
-    return os.environ.get("RECORDS_INDEX_PATH") or _DEFAULT_RECORDS_INDEX
+    from .data_paths import records_index_path
+    return os.environ.get("RECORDS_INDEX_PATH") or str(records_index_path())
 
 
 @lru_cache(maxsize=4)
