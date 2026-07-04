@@ -14,7 +14,7 @@ Everything below runs **in a single process from vendored data** (a harmonized r
 - **Dossiers and similarity** for a receptor.
 - **A unified query box** at `/ui`: one central box routes any input to the right tool.
 
-Optional live enrichment (fresh EBI IMGT/HLA, NCBI Entrez, live VDJdb and IEDB proxying, plus ML scoring backends) runs as a separate service group and is never required to use the tool. See [Optional: live enrichment stack](#optional-live-enrichment-stack).
+Optional live enrichment for MHC allele sequences (EBI IMGT/HLA and IPD-MHC), which the snapshot does not contain, runs as a separate service group and is never required to use the tool. See [Optional: live enrichment stack](#optional-live-enrichment-stack).
 
 ---
 
@@ -139,15 +139,15 @@ curl "http://localhost:8000/predict/cdr?v_gene=TRBV12-3&species=human"
 
 ## Optional: live enrichment stack
 
-The core reads from a vendored, harmonized snapshot. If you also want **live** proxying to EBI IMGT/HLA and NCBI Entrez, live VDJdb and IEDB queries, or the ML scoring backends, start the enrichment services. Do this with **one command**, never five terminals:
+The core reads from a vendored, harmonized snapshot and needs nothing else. The one thing the snapshot does not contain is **MHC allele sequences**. If you want live lookup of those from EBI IMGT/HLA and IPD-MHC, start the optional enrichment stack with **one command**, never five terminals:
 
 ```bash
 docker-compose up
 ```
 
-This launches the tool servers and the main API together on a shared network. When these services are absent, the endpoints that would use them degrade gracefully to the vendored data rather than failing.
+This launches the hla tool server and the main API together on a shared network. When the hla/mhc servers are absent, the `/search` endpoint still responds; it just cannot serve allele sequences.
 
-The legacy federated `/search` endpoint (`{"source":"hla|tcr|vdjdb|iedb", ...}`) is served by this stack. Whether the live federation still earns its place, given the vendored snapshot, is an open design question and is not needed for day to day use.
+TCR **record** search is served in process by `POST /v1/tcr/records` from the vendored snapshot. The `/search` endpoint is now scoped to MHC allele sequences only: `{"source": "hla"}` or `{"source": "mhc"}`. Any other source returns HTTP 400 pointing at `/v1/tcr/records`.
 
 ---
 
@@ -158,11 +158,8 @@ All are optional. Defaults give you the single process core.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RECORDS_INDEX_PATH` | `data/records_index.parquet` | Vendored harmonized records index |
-| `HLA_SERVER_URL` | `http://127.0.0.1:8101` | HLA tool server (optional live stack) |
-| `TCR_SERVER_URL` | `http://127.0.0.1:8102` | TCR tool server (optional live stack) |
-| `VDJDB_SERVER_URL` | `http://127.0.0.1:8103` | VDJdb tool server (optional live stack) |
-| `IEDB_SERVER_URL` | `http://127.0.0.1:8104` | IEDB tool server (optional live stack) |
-| `NCBI_API_KEY` | *(empty)* | NCBI API key, raises the rate limit to 10 req/s |
+| `HLA_SERVER_URL` | `http://127.0.0.1:8101` | HLA allele sequence proxy (optional live stack) |
+| `MHC_SERVER_URL` | `http://127.0.0.1:8105` | IPD-MHC allele sequence proxy (optional live stack) |
 | `LLM_BASE_URL` | *(empty)* | OpenAI compatible endpoint for the free text `ask` path (falls back to a heuristic parser when unset) |
 | `LLM_MODEL` | `local-model` | Model id for the `ask` path |
 
@@ -192,6 +189,6 @@ The core is a set of single source pure functions (records retrieval, germline a
         IMGT germline)
 ```
 
-The optional live enrichment services (EBI IMGT/HLA, NCBI Entrez, live VDJdb and IEDB, ML scoring) sit beside this core and are reached over HTTP only when running. They are launched together with `docker-compose up` and are never required for the core.
+The optional hla and mhc allele sequence proxies (EBI IMGT/HLA, IPD-MHC) sit beside this core and are reached over HTTP only when running. They are launched with `docker-compose up` and are never required for the core.
 
 IMGT (IMGT/HLA, IMGT/GENE-DB, IMGT germline, IMGT numbering) is a data source cited throughout. TCR Explorer is an independent tool and is not affiliated with IMGT.

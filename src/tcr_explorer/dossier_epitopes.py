@@ -72,13 +72,11 @@ def lookup_known_epitopes(
 def resolve_id(source: str, ident: str) -> dict:
     """Best-effort resolve a `vdjdb:`/`iedb:` id via the same search layer.
 
-    NOTE: `SearchRequest`/`SearchIndex` have no id filter field, so this cannot
-    do true server-side id resolution within sub-project A (we must not modify
-    `search()`/models here). It pulls a page of records and strictly matches
-    `ident` client-side; the common no-live-server case returns `{}` and the
-    dossier degrades to `source_unavailable` + partial. Reliable id resolution
-    needs a dedicated id filter on SearchRequest/SearchIndex, deferred beyond
-    sub-project A. Never fabricates a record. Returns `{}` on any failure.
+    NOTE: `SearchRequest` has no id filter field, and `/search` is now scoped to
+    hla/mhc, so a `vdjdb`/`iedb` id search returns HTTP 400 (caught below). This
+    path therefore degrades to `{}` and the dossier reports `source_unavailable`
+    + partial. Reliable id resolution against the vendored snapshot is a later
+    follow up. Never fabricates a record. Returns `{}` on any failure.
     """
     try:
         # The router only ever produces vdjdb/iedb sources for id inputs.
