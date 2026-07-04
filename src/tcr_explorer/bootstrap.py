@@ -26,11 +26,13 @@ def ensure_ready() -> None:
 
 
 def _run_stitchrdl() -> dict:
+    # Invoke stitchr's downloader through the current interpreter so it resolves
+    # regardless of PATH (a venv console script is not on PATH unless activated).
     out = {}
     for species in ("human", "mouse"):
         try:
-            subprocess.run(["stitchrdl", "-s", species], check=True,
-                           capture_output=True, text=True)
+            subprocess.run([sys.executable, "-m", "Stitchr.stitchrdl", "-s", species],
+                           check=True, capture_output=True, text=True)
             out[species] = True
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             out[species] = f"failed: {exc}"
