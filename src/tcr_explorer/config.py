@@ -7,11 +7,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Settings:
-    database_path: str = os.getenv("DATABASE_PATH", "data/imgt.db")
     hla_server_url: str = os.getenv("HLA_SERVER_URL", "http://127.0.0.1:8101")
-    tcr_server_url: str = os.getenv("TCR_SERVER_URL", "http://127.0.0.1:8102")
-    vdjdb_server_url: str = os.getenv("VDJDB_SERVER_URL", "http://127.0.0.1:8103")
-    iedb_server_url: str = os.getenv("IEDB_SERVER_URL", "http://127.0.0.1:8104")
     mhc_server_url: str = os.getenv("MHC_SERVER_URL", "http://127.0.0.1:8105")
     batman_server_url: str = os.getenv("BATMAN_SERVER_URL", "http://127.0.0.1:8105")
     batman_timeout: float = float(os.getenv("BATMAN_TIMEOUT", "30.0"))

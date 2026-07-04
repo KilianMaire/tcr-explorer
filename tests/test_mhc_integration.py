@@ -84,18 +84,13 @@ def test_mhc_source_not_called_for_hla(api_client):
 
 
 def test_mhc_source_not_called_for_vdjdb(api_client):
-    """source='vdjdb' should NOT call mhc_client."""
-    with (
-        patch("tcr_explorer.api.vdjdb_client") as mock_vdjdb,
-        patch("tcr_explorer.api.iedb_client") as mock_iedb,
-        patch("tcr_explorer.api.mhc_client") as mock_mhc,
-    ):
-        mock_vdjdb.search = AsyncMock(return_value=_EMPTY_RESP)
-        mock_iedb.search = AsyncMock(return_value=_EMPTY_RESP)
+    """source='vdjdb' now 400s (record search moved to /v1/tcr/records) and never calls mhc_client."""
+    with patch("tcr_explorer.api.mhc_client") as mock_mhc:
         mock_mhc.search = AsyncMock(return_value=_EMPTY_RESP)
         resp = api_client.post("/search", json={"source": "vdjdb"})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 400
+    assert "/v1/tcr/records" in resp.json()["detail"]
     mock_mhc.search.assert_not_called()
 
 

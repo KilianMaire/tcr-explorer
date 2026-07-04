@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import asyncio
-import csv
 import dataclasses
-import io
 import logging
 import math as _math
 from contextlib import asynccontextmanager
@@ -12,7 +9,7 @@ from typing import Optional
 import httpx
 from pydantic import BaseModel
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
@@ -30,19 +27,14 @@ from .dossier_models import (
     SimilarResponse,
     TCRDossier,
 )
-from .fasta_parser import parse_cdr3_fasta, parse_fasta_bytes
-from .file_ingest import parse_file, parse_vdjdb_tsv
 from .mcp_clients import ToolServerClient
 from .models import (
     AssignRequest, AssignResponse,
-    CDRPredictResponse, GeneRecord, GeneSource, IEDBHit, IngestResponse, NLQueryRequest,
-    QueryRequest, QueryResponse, QueryUnderstanding, QueryBlock,
+    CDRPredictResponse, QueryRequest, QueryResponse, QueryUnderstanding, QueryBlock,
     ReconstructRequest, ReconstructResponse,
     SearchRequest, SearchResponse, Species,
 )
-from .nl_query import lmstudio_parse
 from .reconstructor import reconstruct_tcr
-from .search_index import SearchIndex
 
 _logger = logging.getLogger(__name__)
 
@@ -86,11 +78,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-index = SearchIndex(settings.database_path)
 hla_client = ToolServerClient(settings.hla_server_url)
-tcr_client = ToolServerClient(settings.tcr_server_url)
-vdjdb_client = ToolServerClient(settings.vdjdb_server_url)
-iedb_client = ToolServerClient(settings.iedb_server_url)
 mhc_client = ToolServerClient(settings.mhc_server_url)
 
 
@@ -159,125 +147,11 @@ def _composite_score(
     return product ** (1.0 / len(scores))
 
 
-async def _enrich_with_batman(
-    records: list[GeneRecord],
-    req: SearchRequest,
-) -> list[GeneRecord]:
-    """Call batman_server /score for each VDJdb record with an epitope.
-
-    Attaches batman_score, pmhc_score, tcrdist_score, composite_score.
-    Skips records without antigen_epitope. Silently ignores server errors.
-    """
-    if not settings.batman_enable:
-        return records
-
-    enriched = []
-    for rec in records:
-        epitope = rec.antigen_epitope
-        if not epitope:
-            enriched.append(rec)
-            continue
-
-        meta = rec.metadata or {}
-        hla = meta.get("mhc_a") or getattr(req, "hla_allele", None) or ""
-
-        payload = {
-            "tcr_id": rec.gene_name,
-            "index_peptide": epitope,
-            "candidate_peptide": epitope,
-            "hla_allele": hla or None,
-            "cdr3_b": rec.sequence or None,
-            "v_gene": meta.get("v_segm") or None,
-            "j_gene": meta.get("j_segm") or None,
-        }
-
-        try:
-            resp = await batman_client.post_score(payload)
-            b_score = resp.get("batman_score")
-            p_score = resp.get("pmhc_score")
-            t_score = resp.get("tcrdist_score")
-            comp = _composite_score(b_score, p_score, t_score)
-            enriched.append(rec.model_copy(update={
-                "batman_score": b_score,
-                "pmhc_score": p_score,
-                "tcrdist_score": t_score,
-                "composite_score": comp,
-            }))
-        except Exception:
-            enriched.append(rec)
-
-    return enriched
-
-
 def _coerce_search_response(value: "SearchResponse | dict") -> SearchResponse:
     """Accept either a SearchResponse or a raw dict (as returned by mocks in tests)."""
     if isinstance(value, dict):
         return SearchResponse(**value)
     return value
-
-
-def _merge_results(local: SearchResponse, remote: SearchResponse, req: SearchRequest) -> SearchResponse:
-    """Merge local index and remote tool-server results, then apply offset + limit."""
-    combined = local.records + remote.records
-    page = combined[req.offset: req.offset + req.limit]
-    return SearchResponse(
-        total=local.total + remote.total,
-        records=page,
-        limit=req.limit,
-        offset=req.offset,
-    )
-
-
-_IEDB_HITS_CAP = 5
-
-
-def _enrich_with_iedb(
-    vdjdb_records: list[GeneRecord],
-    iedb_response: SearchResponse,
-) -> list[GeneRecord]:
-    """Attach IEDB assay hits to VDJdb records sharing the same antigen epitope.
-    IEDB hits with no matching VDJdb record become phantom GeneRecords
-    (sequence="", gene_name=epitope) acting as extensible slots."""
-    iedb_by_epitope: dict[str, list[IEDBHit]] = {}
-    for rec in iedb_response.records:
-        ep = rec.sequence.upper()
-        if not ep:
-            continue
-        hit = IEDBHit(
-            epitope_sequence=rec.sequence,
-            mhc_allele=rec.gene_name if rec.gene_name and rec.gene_name != "unknown" else None,
-            mhc_class=rec.metadata.get("mhc_class"),
-            source_organism=rec.metadata.get("source_organism"),
-            antigen_name=rec.metadata.get("antigen_name"),
-            assay_type=rec.metadata.get("assay_type"),
-            effector_cell_type=rec.metadata.get("effector_cell_type"),
-            qualitative_measure=rec.metadata.get("qualitative_measure"),
-        )
-        iedb_by_epitope.setdefault(ep, [])
-        if len(iedb_by_epitope[ep]) < _IEDB_HITS_CAP:
-            iedb_by_epitope[ep].append(hit)
-
-    matched_epitopes: set[str] = set()
-    enriched: list[GeneRecord] = []
-    for rec in vdjdb_records:
-        ep_key = (rec.antigen_epitope or "").upper()
-        if ep_key and ep_key in iedb_by_epitope:
-            matched_epitopes.add(ep_key)
-            enriched.append(rec.model_copy(update={"iedb_hits": iedb_by_epitope[ep_key]}))
-        else:
-            enriched.append(rec)
-
-    for ep_key, hits in iedb_by_epitope.items():
-        if ep_key not in matched_epitopes:
-            phantom = GeneRecord(
-                source="vdjdb",
-                gene_name=hits[0].epitope_sequence,
-                sequence="",
-                iedb_hits=hits,
-            )
-            enriched.append(phantom)
-
-    return enriched
 
 
 class UserActivationRow(BaseModel):
@@ -348,131 +222,21 @@ def predict_cdr(v_gene: str, species: Species = "human") -> CDRPredictResponse:
     return CDRPredictResponse(v_gene=v_gene, species=species, **result)
 
 
-@app.post("/ingest/fasta", response_model=IngestResponse)
-async def ingest_fasta(
-    source: GeneSource = Form(...),
-    species: Species = Form("other"),
-    file: UploadFile = File(...),
-) -> IngestResponse:
-    raw = await file.read()
-    parsed = list(parse_fasta_bytes(raw, source=source, default_species=species))
-    inserted = index.upsert_many(parsed)
-    return IngestResponse(inserted=inserted, source=source, species=species)
-
-
-@app.post("/ingest/file", response_model=IngestResponse)
-async def ingest_file(
-    source: GeneSource = Form(...),
-    species: Species = Form("other"),
-    file: UploadFile = File(...),
-) -> IngestResponse:
-    raw = await file.read()
-    parsed = parse_file(raw, file.filename or "unknown", source=source, species=species)
-    inserted = index.upsert_many(parsed)
-    return IngestResponse(inserted=inserted, source=source, species=species)
-
-
-@app.post("/ingest/vdjdb", response_model=IngestResponse)
-async def ingest_vdjdb(file: UploadFile = File(...)) -> IngestResponse:
-    """Bulk-load a VDJdb TSV (or CSV) export into the local search index."""
-    raw = await file.read()
-    records = parse_vdjdb_tsv(raw)
-    inserted = index.upsert_many(records)
-    return IngestResponse(inserted=inserted, source="vdjdb", species="other")
-
-
 @app.post("/search", response_model=SearchResponse)
 async def search(req: SearchRequest) -> SearchResponse:
-    local = index.search(req)
+    """Look up MHC allele sequences from the live hla/mhc proxies.
 
-    # Tool servers don't support offset; inflate their limit so we fetch enough
-    # records to correctly apply offset after merging with the local results.
-    tool_req = req.model_copy(update={"limit": req.limit + req.offset, "offset": 0}) if req.offset else req
-
-    remote = SearchResponse(total=0, records=[], limit=req.limit, offset=0)
+    TCR record search moved to POST /v1/tcr/records, which serves the vendored
+    snapshot. Only source hla and source mhc are handled here.
+    """
     if req.source == "hla":
-        remote = _coerce_search_response(await hla_client.search(tool_req))
-    elif req.source == "tcr":
-        remote = _coerce_search_response(await tcr_client.search(tool_req))
-    elif req.source == "vdjdb":
-        iedb_req = tool_req.model_copy(update={"source": None})
-        vdjdb_raw, iedb_raw = await asyncio.gather(
-            vdjdb_client.search(tool_req),
-            iedb_client.search(iedb_req),
-            return_exceptions=True,
-        )
-        remote = _coerce_search_response(
-            vdjdb_raw if not isinstance(vdjdb_raw, Exception)
-            else {"total": 0, "records": [], "limit": req.limit, "offset": 0}
-        )
-        iedb_remote = _coerce_search_response(
-            iedb_raw if not isinstance(iedb_raw, Exception)
-            else {"total": 0, "records": [], "limit": req.limit, "offset": 0}
-        )
-        merged_local = _merge_results(local, remote, req)
-        enriched_records = _enrich_with_iedb(merged_local.records, iedb_remote)
-        # Batman composite scoring
-        enriched_records = await _enrich_with_batman(enriched_records, req)
-        return SearchResponse(
-            total=merged_local.total,
-            records=enriched_records,
-            limit=req.limit,
-            offset=req.offset,
-        )
-    elif req.source == "iedb":
-        remote = _coerce_search_response(await iedb_client.search(tool_req))
-    elif req.source == "mhc":
-        remote = _coerce_search_response(await mhc_client.search(tool_req))
-
-    return _merge_results(local, remote, req)
-
-
-@app.post("/query/nl", response_model=SearchResponse)
-async def search_nl(req: NLQueryRequest) -> SearchResponse:
-    parsed = await lmstudio_parse(req.query)
-    search_req = SearchRequest(**parsed.model_dump(), limit=req.limit)
-    return await search(search_req)
-
-
-@app.post("/search/fasta", response_model=SearchResponse)
-async def search_fasta(
-    file: UploadFile = File(...),
-    source: Optional[GeneSource] = Form(None),
-    species: Optional[Species] = Form(None),
-    limit: int = Form(50),
-) -> SearchResponse:
-    """
-    Accept a FASTA file whose sequences are CDR3 amino-acid strings.
-    Searches each CDR3 against VDJdb (or the specified source) and returns
-    merged, deduplicated results.  Limited to 20 sequences per request.
-    """
-    raw = await file.read()
-    entries = parse_cdr3_fasta(raw)[:20]   # cap at 20 CDR3s per call
-
-    if not entries:
-        return SearchResponse(total=0, records=[], limit=limit, offset=0)
-
-    tasks = [
-        search(SearchRequest(
-            source=source or "vdjdb",
-            species=species,
-            sequence_contains=cdr3,
-            limit=limit,
-        ))
-        for _, cdr3 in entries
-    ]
-    results = await asyncio.gather(*tasks)
-
-    seen: set[str] = set()
-    merged = []
-    for r in results:
-        for rec in r.records:
-            key = rec.sequence + "|" + rec.gene_name
-            if key not in seen:
-                seen.add(key)
-                merged.append(rec)
-
-    return SearchResponse(total=len(merged), records=merged[:limit], limit=limit, offset=0)
+        return _coerce_search_response(await hla_client.search(req))
+    if req.source == "mhc":
+        return _coerce_search_response(await mhc_client.search(req))
+    raise HTTPException(
+        status_code=400,
+        detail="source must be hla or mhc; use POST /v1/tcr/records for TCR records",
+    )
 
 
 @app.post("/reconstruct", response_model=ReconstructResponse)
@@ -527,29 +291,6 @@ def reconstruct(req: ReconstructRequest) -> ReconstructResponse:
     result["inference_support"] = inference_support
     result["inference_alternatives"] = inference_alternatives
     return ReconstructResponse(**result)
-
-
-@app.post("/search/table")
-async def search_table(req: SearchRequest, fmt: str = "csv"):
-    result = await search(req)
-    headers = ["source", "species", "gene_name", "allele_name", "region", "sequence"]
-
-    rows = [
-        [r.source, r.species, r.gene_name, r.allele_name or "", r.region or "", r.sequence]
-        for r in result.records
-    ]
-
-    if fmt == "md":
-        md = ["| " + " | ".join(headers) + " |", "|" + "|".join(["---"] * len(headers)) + "|"]
-        for row in rows:
-            md.append("| " + " | ".join(row) + " |")
-        return PlainTextResponse("\n".join(md), media_type="text/markdown")
-
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(headers)
-    writer.writerows(rows)
-    return PlainTextResponse(out.getvalue(), media_type="text/csv")
 
 
 @app.post("/predict/activation", response_model=PredictActivationResponse)

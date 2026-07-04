@@ -10,8 +10,11 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from .api import _IEDB_HITS_CAP, search
+from .api import search
 from .models import IEDBHit, SearchRequest
+
+# Cap on the number of known-epitope hits returned per dossier lookup.
+_IEDB_HITS_CAP = 5
 
 
 def _run_search(req: SearchRequest):
