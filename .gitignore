@@ -13,3 +13,6 @@ data/raw/
 /dist/
 /build/
 *.egg-info/
+
+# Internal dev notes, not for the public repo
+CLAUDE.md
