@@ -1,5 +1,7 @@
 # TCR Explorer
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21204936.svg)](https://doi.org/10.5281/zenodo.21204936)
+
 A federated tool for T cell receptor analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors. The same pure functions back a web UI, a REST API, and an MCP server, so an assistant can drive the whole tool.
 
 ## How the data works

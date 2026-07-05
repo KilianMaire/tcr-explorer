@@ -18,6 +18,7 @@ authors:
     orcid: "https://orcid.org/0009-0002-7266-3252"
     affiliation: "Department of Immunology and Microbiology, LEO Foundation Skin Immunology Research Center, University of Copenhagen, Denmark"
 version: 0.3.0
+doi: 10.5281/zenodo.21204936
 license: MIT
 repository-code: "https://github.com/KilianMaire/tcr-explorer"
 keywords:
