@@ -4,6 +4,8 @@
 
 A federated tool for T cell receptor analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors with the tcrdist metric (single chain and paired). The same pure functions back a web UI, a REST API, and an MCP server, so an assistant can drive the whole tool.
 
+**Try it in your browser** (no install): <https://kmbiotraxion-tcr-explorer.hf.space>. This public demo runs the germline features (allele assignment, chain reconstruction, alignment, CDR loops). The record databases are not included there (their licenses vary, see below), so install locally for records retrieval and similarity.
+
 ## How the data works
 
 The package ships the IMGT germline (bundled under CC BY 4.0) but **no record datasets**. On first use you run `tcr-explorer-refresh` once. It downloads the four record datasets (VDJdb, IEDB, McPAS, TCR3d) from each source's own official endpoint into a local folder, then harmonizes them into a single records index. After that, everything runs in one process against that local index, offline, until you refresh again to pull fresh data.
