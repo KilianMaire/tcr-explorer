@@ -1,0 +1,74 @@
+cff-version: 1.2.0
+message: "If you use TCR Explorer, please cite it as below, and also cite the data sources you query (VDJdb, IEDB, McPAS, TCR3d), the IMGT reference, and the tcrdist metric (see README)."
+title: "TCR Explorer: federated T cell receptor analysis with germline assignment, reconstruction, and tcrdist similarity"
+abstract: >-
+  TCR Explorer retrieves T cell receptor records from public databases
+  (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J alleles from the IMGT
+  reference, reconstructs full chain sequences, builds evidence dossiers, and
+  scores single-chain and paired sequence similarity with the authoritative
+  tcrdist metric (with a BLOSUM fallback). The same pure functions are exposed
+  through a web UI, a REST API, and a Model Context Protocol server, so an
+  assistant can query it directly. The design is honesty-first: deposited
+  sequences are returned verbatim, reconstructions are tagged, a bare CDR3
+  never yields a V allele, and ambiguous calls report ties.
+type: software
+authors:
+  - family-names: Maire
+    given-names: Kilian
+    orcid: "https://orcid.org/0009-0002-7266-3252"
+    affiliation: "Department of Immunology and Microbiology, LEO Foundation Skin Immunology Research Center, University of Copenhagen, Denmark"
+version: 0.3.0
+license: MIT
+repository-code: "https://github.com/KilianMaire/tcr-explorer"
+keywords:
+  - TCR
+  - T-cell-receptor
+  - immunology
+  - AIRR
+  - VDJ
+  - germline
+  - IMGT
+  - VDJdb
+  - IEDB
+  - McPAS
+  - bioinformatics
+  - MCP
+  - immune-repertoire
+  - epitope
+  - tcrdist
+references:
+  - type: article
+    authors:
+      - family-names: Dash
+        given-names: Pradyot
+      - family-names: Fiore-Gartland
+        given-names: Andrew J.
+      - family-names: Hertz
+        given-names: Tomer
+      - family-names: Wang
+        given-names: George C.
+      - family-names: Sharma
+        given-names: Shalini
+      - family-names: Souquette
+        given-names: Aisha
+      - family-names: Crawford
+        given-names: Jeremy Chase
+      - family-names: Clemens
+        given-names: E. Bridie
+      - family-names: Nguyen
+        given-names: Thi H. O.
+      - family-names: Kedzierska
+        given-names: Katherine
+      - family-names: La Gruta
+        given-names: Nicole L.
+      - family-names: Bradley
+        given-names: Philip
+      - family-names: Thomas
+        given-names: Paul G.
+    title: "Quantifiable predictive features define epitope-specific T cell receptor repertoires"
+    journal: "Nature"
+    year: 2017
+    volume: 547
+    issue: 7661
+    start: 89
+    end: 93

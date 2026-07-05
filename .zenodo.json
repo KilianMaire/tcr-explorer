@@ -1,0 +1,43 @@
+{
+  "title": "TCR Explorer: federated T cell receptor analysis with germline assignment, reconstruction, and tcrdist similarity",
+  "description": "TCR Explorer retrieves T cell receptor records from public databases (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J alleles from the IMGT reference, reconstructs full chain sequences, builds evidence dossiers, and scores single-chain and paired sequence similarity with the authoritative tcrdist metric (with a BLOSUM fallback). The same pure functions are exposed through a web UI, a REST API, and a Model Context Protocol server. The design is honesty-first: deposited sequences are returned verbatim, reconstructions are tagged, a bare CDR3 never yields a V allele, and ambiguous calls report ties.",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Maire, Kilian",
+      "orcid": "0009-0002-7266-3252",
+      "affiliation": "Department of Immunology and Microbiology, LEO Foundation Skin Immunology Research Center, University of Copenhagen, Denmark"
+    }
+  ],
+  "keywords": [
+    "TCR",
+    "T-cell-receptor",
+    "immunology",
+    "AIRR",
+    "VDJ",
+    "germline",
+    "IMGT",
+    "VDJdb",
+    "IEDB",
+    "McPAS",
+    "bioinformatics",
+    "MCP",
+    "immune-repertoire",
+    "epitope",
+    "tcrdist"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/KilianMaire/tcr-explorer",
+      "scheme": "url"
+    },
+    {
+      "relation": "isIdenticalTo",
+      "identifier": "https://pypi.org/project/tcr-explorer/",
+      "scheme": "url"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -35,8 +36,12 @@ from .reconstructor import reconstruct_tcr
 
 _logger = logging.getLogger(__name__)
 
+try:
+    _VERSION = _pkg_version("tcr-explorer")
+except PackageNotFoundError:  # running from a source tree without an install
+    _VERSION = "0.0.0"
 
-app = FastAPI(title="TCR Explorer", version="0.1.0")
+app = FastAPI(title="TCR Explorer", version=_VERSION)
 
 app.add_middleware(
     CORSMiddleware,

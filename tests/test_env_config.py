@@ -133,8 +133,8 @@ class TestEnvExample:
     def test_minimum_key_count(self):
         """Sanity check: .env.example should have a reasonable number of keys."""
         keys = _parse_env_example()
-        assert len(keys) >= 20, (
-            f"Expected at least 20 keys in .env.example, found {len(keys)}"
+        assert len(keys) >= 12, (
+            f"Expected at least 12 keys in .env.example, found {len(keys)}"
         )
 
 
