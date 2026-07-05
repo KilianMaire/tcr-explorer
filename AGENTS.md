@@ -2,7 +2,7 @@
 
 This file tells an AI coding or research assistant (Codex, Cursor, Cline, and similar MCP-capable tools) how to drive TCR Explorer to answer a user's T cell receptor questions against real immunology data. Read it before you touch the tool.
 
-TCR Explorer retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors. The same pure functions back a REST API, a web query box, and an MCP server, so you can drive everything through one interface.
+TCR Explorer retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors with the tcrdist metric (single chain and paired). The same pure functions back a REST API, a web query box, and an MCP server, so you can drive everything through one interface.
 
 ## First, make the data ready
 

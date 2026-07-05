@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21204936.svg)](https://doi.org/10.5281/zenodo.21204936)
 
-A federated tool for T cell receptor analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors. The same pure functions back a web UI, a REST API, and an MCP server, so an assistant can drive the whole tool.
+A federated tool for T cell receptor analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors with the tcrdist metric (single chain and paired). The same pure functions back a web UI, a REST API, and an MCP server, so an assistant can drive the whole tool.
 
 ## How the data works
 
@@ -80,7 +80,7 @@ TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add t
 Or paste this prompt into your assistant to have it set the connection up for you:
 
 ```
-Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. First install it (pip install "tcr-explorer[tcrdist]", or use uvx --from "tcr-explorer[tcrdist]"), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from "tcr-explorer[tcrdist]" tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
+Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. The source is public and MIT licensed at https://github.com/KilianMaire/tcr-explorer if you want to review it first. First install it (pip install "tcr-explorer[tcrdist]", or use uvx --from "tcr-explorer[tcrdist]"), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from "tcr-explorer[tcrdist]" tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
 ```
 
 You can also run it straight from the public repo without installing: `uvx --from "git+https://github.com/KilianMaire/tcr-explorer[tcrdist]" tcr-explorer-mcp`.
