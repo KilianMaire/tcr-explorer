@@ -54,14 +54,17 @@ Hugging Face builds the image and serves it. The live URL is
 
 ## Updating the demo
 
-The `Dockerfile` installs from GitHub `main`, so a rebuild picks up the latest
-code. Hugging Face rebuilds when the Space repo changes, not when this repo
-changes. To force a rebuild after pushing new commits here, either use the
-"Factory rebuild" button in the Space settings, or push any change to the Space
-repo (for example bump a comment in its `Dockerfile`).
+The `Dockerfile` installs from a pinned commit tarball, so the build is
+reproducible. To update the demo to newer code:
 
-For a reproducible build, pin the install to a commit: in the `Dockerfile`,
-replace `heads/main.tar.gz` with `<commit-sha>.tar.gz`.
+1. bump the commit SHA in `deploy/Dockerfile` (the `archive/<sha>.tar.gz` URL) to
+   a newer `tcr-explorer` commit, and copy the updated `Dockerfile` to the Space
+   repo;
+2. commit and push the Space repo.
+
+Hugging Face rebuilds when the Space repo changes, not when this repo changes,
+so pushing the bumped `Dockerfile` is what triggers the new build. You can also
+use the "Factory rebuild" button in the Space settings.
 
 ## Why germline only
 
