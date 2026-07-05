@@ -31,27 +31,29 @@ The Space already exists at `KMBioTraxion/TCR_Explorer`. To update it:
 # 1. build the IEDB index locally (needs the package installed, e.g. a venv)
 python deploy/build_iedb_index.py /tmp/iedb-index
 
-# 2. clone the Space repo
+# 2. clone the Space repo and enable git LFS in it (Hugging Face requires binary
+#    files to go through LFS/Xet; the default .gitattributes already LFS-tracks
+#    *.parquet, so keep that rule)
 git clone https://huggingface.co/spaces/KMBioTraxion/TCR_Explorer /tmp/tcrx-space
-
-# 3. the index parquet is a few MB; commit it as a regular blob, not LFS, by
-#    dropping the *.parquet LFS rule from the Space's .gitattributes
-sed -i '' '/^\*\.parquet /d' /tmp/tcrx-space/.gitattributes
-
-# 4. copy the Space files (Dockerfile, README, and the built index) to its root
-cp deploy/Dockerfile deploy/README.md /tmp/tcrx-space/
-cp /tmp/iedb-index/records_index.parquet /tmp/iedb-index/records_index.meta.json /tmp/tcrx-space/
-
-# 5. commit and push (use a Hugging Face write token as the git password)
 cd /tmp/tcrx-space
-git add .gitattributes Dockerfile README.md records_index.parquet records_index.meta.json
+git lfs install --local
+
+# 3. copy the Space files (Dockerfile, README, and the built index) to its root
+cp /path/to/tcr-explorer/deploy/Dockerfile /path/to/tcr-explorer/deploy/README.md .
+cp /tmp/iedb-index/records_index.parquet /tmp/iedb-index/records_index.meta.json .
+
+# 4. commit and push (use a Hugging Face write token as the git password; the
+#    LFS object uploads during the push)
+git add -A
+git lfs ls-files            # should list records_index.parquet
 git commit -m "TCR Explorer IEDB + MCP instance"
 git push
 ```
 
 Hugging Face rebuilds the image. The build no longer touches iedb.org (it copies
 the baked index), so it is faster and reliable, and container cold starts are
-fast.
+fast. LFS files are materialized in the build context, so the `COPY` finds the
+real parquet.
 
 Live URLs:
 
