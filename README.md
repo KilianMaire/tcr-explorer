@@ -94,6 +94,10 @@ The hosted instance exposes the tools over MCP at
 The hosted instance serves IEDB and the germline features. For all record
 sources (VDJdb, McPAS, TCR3d), run it locally as below.
 
+It runs on a free tier that sleeps after inactivity, so the first request after
+a while can take up to a minute while it wakes. If a call times out, wait a
+moment and retry.
+
 ### Local, all sources
 
 TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add this to your assistant's MCP configuration. It pulls the `tcrdist` extra so similarity uses the authoritative metric; drop `[tcrdist]` for the leaner install (similarity then uses the BLOSUM fallback automatically).
