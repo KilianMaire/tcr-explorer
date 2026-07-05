@@ -652,3 +652,34 @@ def root() -> RedirectResponse:
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> HTMLResponse:
     return HTMLResponse(_ui_html())
+
+
+def _enable_remote_mcp_if_configured() -> None:
+    """Expose the MCP server over streamable HTTP at /mcp when
+    TCR_EXPLORER_MCP_HTTP is set, so remote MCP-capable chat clients can call the
+    same tools the stdio MCP server exposes.
+
+    Deferred to module end on purpose: importing mcp_server pulls dossier ->
+    dossier_epitopes, which imports `search` from THIS module, so doing it during
+    api.py's top-level execution would be a circular import. By the time this runs
+    (last line of the module) `search` and every endpoint are defined.
+    """
+    if not os.getenv("TCR_EXPLORER_MCP_HTTP"):
+        return
+    from contextlib import asynccontextmanager
+    from .mcp_server import mcp as _mcp
+
+    # Serve the handler at the mount root so the public path is exactly /mcp.
+    _mcp.settings.streamable_http_path = "/"
+    app.mount("/mcp", _mcp.streamable_http_app())
+
+    @asynccontextmanager
+    async def _mcp_lifespan(_app):
+        async with _mcp.session_manager.run():
+            yield
+
+    # The streamable-HTTP session manager must run for the lifetime of the app.
+    app.router.lifespan_context = _mcp_lifespan
+
+
+_enable_remote_mcp_if_configured()
