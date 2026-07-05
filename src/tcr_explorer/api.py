@@ -51,6 +51,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Light per-IP rate limit for the public, unauthenticated instance. Off unless
+# TCR_EXPLORER_RATE_LIMIT_PER_MIN is a positive integer, so local runs and the
+# test suite are unaffected. In-memory sliding window; adequate for a single
+# free-tier instance, not a distributed limiter.
+_RATE_LIMIT_PER_MIN = int(os.getenv("TCR_EXPLORER_RATE_LIMIT_PER_MIN") or 0)
+if _RATE_LIMIT_PER_MIN > 0:
+    import time as _time
+    from collections import deque
+    from fastapi.responses import JSONResponse
+
+    _rl_hits: dict[str, deque] = {}
+
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        ip = request.client.host if request.client else "?"
+        now = _time.monotonic()
+        dq = _rl_hits.setdefault(ip, deque())
+        while dq and now - dq[0] > 60.0:
+            dq.popleft()
+        if len(dq) >= _RATE_LIMIT_PER_MIN:
+            return JSONResponse(
+                {"detail": "rate limit exceeded, please retry in a moment"},
+                status_code=429,
+            )
+        dq.append(now)
+        return await call_next(request)
 hla_client = ToolServerClient(settings.hla_server_url)
 mhc_client = ToolServerClient(settings.mhc_server_url)
 
@@ -627,11 +654,11 @@ document.getElementById('copyPromptBtn').addEventListener('click',()=>{navigator
 _DEMO_BANNER = (
     '<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:8px;'
     'padding:.7rem 1rem;margin:0 0 1rem;font-size:.9rem;line-height:1.45">'
-    '<strong>Public demo.</strong> Germline features only: allele assignment, '
-    'chain reconstruction, alignment, and CDR loops. The record databases '
-    '(VDJdb, IEDB, McPAS, TCR3d) are not included here for licensing reasons, so '
-    'record retrieval and neighbour search return nothing on this instance. For '
-    'the full tool, install locally: <code>pip install "tcr-explorer[tcrdist]"</code>.'
+    '<strong>Public instance.</strong> Serves the IEDB database (CC BY 4.0) plus '
+    'the germline features (allele assignment, chain reconstruction, alignment, '
+    'CDR loops). VDJdb, McPAS and TCR3d are not included here, their licenses do '
+    'not permit public redistribution. For all sources, install locally: '
+    '<code>pip install "tcr-explorer[tcrdist]"</code>.'
     '</div>'
 )
 

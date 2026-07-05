@@ -18,13 +18,13 @@ def test_root_redirects_to_ui():
 
 
 def test_ui_demo_banner_gated_by_env(monkeypatch):
-    # By default (local/full install) there is no demo banner.
-    assert "Public demo" not in client.get("/ui").text
-    # The public germline-only deployment sets TCR_EXPLORER_DEMO to show it.
+    # By default (local/full install) there is no public-instance banner.
+    assert "Public instance" not in client.get("/ui").text
+    # The public deployment sets TCR_EXPLORER_DEMO to show it.
     monkeypatch.setenv("TCR_EXPLORER_DEMO", "1")
     body = client.get("/ui").text
-    assert "Public demo" in body
-    assert "not included here for licensing reasons" in body
+    assert "Public instance" in body
+    assert "do not permit public redistribution" in body
 
 
 def test_ui_has_paired_similarity_form():

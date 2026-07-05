@@ -4,7 +4,7 @@
 
 A federated tool for T cell receptor analysis. It retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes down to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors with the tcrdist metric (single chain and paired). The same pure functions back a web UI, a REST API, and an MCP server, so an assistant can drive the whole tool.
 
-**Try it in your browser** (no install): <https://kmbiotraxion-tcr-explorer.hf.space>. This public demo runs the germline features (allele assignment, chain reconstruction, alignment, CDR loops). The record databases are not included there (their licenses vary, see below), so install locally for records retrieval and similarity.
+**Try it now, no install.** A hosted instance serves the tools over a web UI (<https://kmbiotraxion-tcr-explorer.hf.space/ui>) and over MCP for chat assistants (<https://kmbiotraxion-tcr-explorer.hf.space/mcp>). It serves IEDB (CC BY 4.0) plus the germline features; VDJdb, McPAS and TCR3d are not hosted (licensing), so install locally for all sources. See [Connect a chat assistant](#connect-a-chat-assistant).
 
 ## How the data works
 
@@ -57,7 +57,7 @@ Two front doors, both a single process.
 
 ### As an MCP server (recommended)
 
-Point your own assistant at TCR Explorer over MCP and ask questions in plain language. This targets desktop and CLI assistants that run a local stdio MCP server. Some web only assistants do not run local stdio MCP servers the same way, so use a desktop or CLI MCP client for the paste and go flow. See [Connect your assistant](#connect-your-assistant).
+Point your own assistant at TCR Explorer over MCP and ask questions in plain language. Use the hosted instance (no install) or run a local MCP server for all sources. See [Connect a chat assistant](#connect-a-chat-assistant).
 
 ### As a web app and REST API
 
@@ -71,7 +71,30 @@ Open the query box at <http://localhost:8000/ui>, or call the REST API directly.
 curl http://localhost:8000/health   # {"status":"ok"}
 ```
 
-## Connect your assistant
+## Connect a chat assistant
+
+There are two ways to give a chat assistant the TCR Explorer tools: the hosted
+instance (nothing to install, IEDB plus germline) or a local MCP server (all
+sources, runs on your machine).
+
+### Hosted, no install
+
+The hosted instance exposes the tools over MCP at
+`https://kmbiotraxion-tcr-explorer.hf.space/mcp` and over a REST API at
+`https://kmbiotraxion-tcr-explorer.hf.space/openapi.json`.
+
+- **Claude**: on a plan that supports custom connectors, add a remote MCP server
+  pointing at the `/mcp` URL above, then ask in plain language.
+- **ChatGPT**: create a custom GPT, add an Action, and import the OpenAPI schema
+  from the `/openapi.json` URL above. If your account supports remote MCP, point
+  it at the `/mcp` URL instead.
+- **Any MCP capable client**: point it at the `/mcp` URL (streamable HTTP, no
+  authentication).
+
+The hosted instance serves IEDB and the germline features. For all record
+sources (VDJdb, McPAS, TCR3d), run it locally as below.
+
+### Local, all sources
 
 TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add this to your assistant's MCP configuration. It pulls the `tcrdist` extra so similarity uses the authoritative metric; drop `[tcrdist]` for the leaner install (similarity then uses the BLOSUM fallback automatically).
 
