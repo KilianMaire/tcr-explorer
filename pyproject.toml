@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tcr-explorer"
-version = "0.2.0"
+version = "0.2.1"
 description = "Federated TCR analysis: records retrieval, germline allele assignment, reconstruction, dossiers, and similarity, over a web UI, REST API, and MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
