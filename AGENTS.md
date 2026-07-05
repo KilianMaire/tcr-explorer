@@ -25,7 +25,7 @@ For Claude Desktop and Claude Code, add an MCP server that runs the console entr
 {"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
 ```
 
-If `uvx` is unavailable, run `python -m tcr_explorer.mcp_server`. Until the package is on PyPI, use the git form: `uvx --from git+<repo-url> tcr-explorer-mcp`.
+If `uvx` is unavailable, run `python -m tcr_explorer.mcp_server`. You can also run it straight from the public repo: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
 
 ChatGPT does not run local stdio MCP servers the same way. For a paste and go flow, use Claude, or call the REST API directly (see below).
 

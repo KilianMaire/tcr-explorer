@@ -71,7 +71,7 @@ Or paste this prompt into Claude to have it set the connection up for you:
 Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. First install it (pip install tcr-explorer, or use uvx --from tcr-explorer), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
 ```
 
-Until the package is on PyPI, the git form works: `uvx --from git+<your-repo-url> tcr-explorer-mcp`.
+You can also run it straight from the public repo without installing: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
 
 The read only MCP tools are `retrieve_tcr_records`, `assign_tcr_alleles`, `get_tcr_dossier`, `find_similar_tcrs`, `align_tcr_genes`, and `ask_tcr`.
 
