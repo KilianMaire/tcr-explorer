@@ -33,9 +33,9 @@ def _run_search_sync(req: SearchRequest):
 _DOSSIER_TYPES = ("raw_nt", "raw_aa", "gene_name", "allele", "id")
 
 
-def _looks_like_cdr3(tok: str) -> bool:
+def _looks_like_cdr3(tok: str, species: str = "human") -> bool:
     """A protein token of CDR3-ish length: the thing a user wants looked up."""
-    r = route(tok, "auto")
+    r = route(tok, "auto", species)
     return r.detected_type == "raw_aa" and 8 <= len(tok) <= 22
 
 
@@ -51,7 +51,7 @@ def _find_gene(tokens: list[str], seg: str) -> str:
 def _heuristic_plan(query: str, species: str) -> dict:
     q = query.lower()
     toks = query.split()
-    cdr3 = next((t for t in toks if _looks_like_cdr3(t)), "")
+    cdr3 = next((t for t in toks if _looks_like_cdr3(t, species)), "")
     vg, jg = _find_gene(toks, "V"), _find_gene(toks, "J")
     forced_similar = any(k in q for k in ("similar", "nearest", "neighbour", "neighbor", "close to"))
     if forced_similar:
@@ -71,7 +71,7 @@ def _heuristic_plan(query: str, species: str) -> dict:
     # spellable in the amino-acid alphabet do not get misrouted ahead of the real
     # gene/sequence token.
     for tok in toks:
-        r = route(tok, "auto")
+        r = route(tok, "auto", species)
         if r.detected_type in _DOSSIER_TYPES and not r.warnings:
             return {"intent": "dossier", "query": tok, "v_gene": vg, "j_gene": jg}
     return {"intent": "search", "query": query}

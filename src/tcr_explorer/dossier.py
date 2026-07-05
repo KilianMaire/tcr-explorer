@@ -192,7 +192,7 @@ def build_dossier(
     want_seq = "sequences" in request.include
     want_germ = "germline" in request.include
 
-    routed = route(request.query, request.input_type)
+    routed = route(request.query, request.input_type, request.species)
     for code, msg in routed.warnings:
         warnings.append(DossierWarning(code=code, block=None, message=msg))
 

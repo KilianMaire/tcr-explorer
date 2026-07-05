@@ -26,19 +26,31 @@ class RoutedQuery:
     warnings: list[tuple[str, str]] = field(default_factory=list)
 
 
-def _normalize_gene(q: str) -> str:
+# tidytcells names species differently than the rest of the tool. Map ours to
+# its convention so a mouse gene is standardized against musmusculus instead of
+# the tidytcells default (homosapiens), which logs a spurious "Failed to
+# standardize ... for species homosapiens" on every mouse gene.
+_TT_SPECIES: dict[str, str] = {
+    "human": "homosapiens",
+    "mouse": "musmusculus",
+    "other": "homosapiens",
+}
+
+
+def _normalize_gene(q: str, species: str = "human") -> str:
     try:
         import tidytcells as tt
 
         # on_fail="keep" returns the input unchanged on failure (no FutureWarning)
         # and is type-correct (Optional[str]), unlike the removed log_failures bool.
-        fixed = tt.tr.standardize(symbol=q, on_fail="keep")
+        tt_species = _TT_SPECIES.get(species.lower(), "homosapiens")
+        fixed = tt.tr.standardize(symbol=q, species=tt_species, on_fail="keep")
         return fixed or q.upper()
     except Exception:
         return q.upper()
 
 
-def route(query: str, input_type: str = "auto") -> RoutedQuery:
+def route(query: str, input_type: str = "auto", species: str = "human") -> RoutedQuery:
     q = query.strip()
 
     if input_type != "auto":
@@ -57,7 +69,7 @@ def route(query: str, input_type: str = "auto") -> RoutedQuery:
         return RoutedQuery("id", q, source=m.group(1).lower())
 
     if _GENE_RE.match(q):
-        norm = _normalize_gene(q)
+        norm = _normalize_gene(q, species)
         return RoutedQuery("allele" if "*" in q else "gene_name", norm)
 
     s = q.upper().replace(" ", "").replace("\n", "")

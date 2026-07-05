@@ -1,9 +1,27 @@
 # tests/test_input_router.py
+from unittest.mock import patch
+
 from tcr_explorer.input_router import route
 
 def test_override_wins():
     r = route("ACGTACGT", input_type="raw_aa")
     assert r.detected_type == "raw_aa"
+
+
+def test_gene_normalization_threads_species_to_tidytcells():
+    # A mouse gene must be standardized against musmusculus, not the tidytcells
+    # default of homosapiens (which logs "Failed to standardize ... homosapiens").
+    import tidytcells as tt
+    with patch.object(tt.tr, "standardize", return_value="TRAV6-5*04") as m:
+        route("TRAV6-5*04", "auto", species="mouse")
+    assert m.call_args.kwargs.get("species") == "musmusculus"
+
+
+def test_gene_normalization_defaults_species_to_human():
+    import tidytcells as tt
+    with patch.object(tt.tr, "standardize", return_value="TRBV20-1") as m:
+        route("TRBV20-1", "auto")
+    assert m.call_args.kwargs.get("species") == "homosapiens"
 
 def test_gene_and_allele():
     assert route("TRBV20-1", "auto").detected_type == "gene_name"
