@@ -97,22 +97,19 @@ def _stitchr_data_dir() -> Optional[Path]:
     return _native_stitchr_data_dir()
 
 
-def _load_v_region_map(chain: str, species: str) -> dict[str, str]:
-    """
-    Read stitchr FASTA for `chain` (TRA, TRB, …) and `species` (HUMAN, MOUSE …).
-    Returns { gene_name_upper: nt_sequence } for the primary (*01) allele.
-    Prefer *01 but fall back to any allele when *01 is absent.
-    """
+def _iter_v_region_entries(chain: str, species: str) -> list[tuple[str, str]]:
+    """Read the stitchr FASTA for `chain` (TRA, TRB, …) and `species`
+    (HUMAN, MOUSE …) and return every V-REGION entry as (allele_upper, nt_seq),
+    in file order. Header format is "{acc}|{allele}|{species}|…|~V-REGION".
+    Empty when the germline data or file is absent."""
     data_dir = _stitchr_data_dir()
     if data_dir is None:
-        return {}
-
+        return []
     fa_path = data_dir / species.upper() / f"{chain.upper()}.fasta"
     if not fa_path.exists():
-        return {}
+        return []
 
-    # Parse FASTA: header format is "{acc}|{allele}|{species}|…|~V-REGION" etc.
-    gene_map: dict[str, tuple[str, str]] = {}   # gene → (best_allele, seq)
+    entries: list[tuple[str, str]] = []
     current_header = ""
     current_parts: list[str] = []
 
@@ -123,15 +120,12 @@ def _load_v_region_map(chain: str, species: str) -> dict[str, str]:
         parts = current_header.split("|")
         if len(parts) < 2:
             return
-        allele = parts[1]          # e.g. "TRBV19*01"
         segment = parts[-1].strip()  # e.g. "~V-REGION"
+        # stitchr marks V-REGION entries as ~VARIABLE in the last pipe field;
+        # skip LEADER (~LEADER), JOINING (~JOINING), CONSTANT (~CONSTANT).
         if "VARIABLE" not in segment:
-            return                 # skip LEADER (~LEADER), JOINING (~JOINING), CONSTANT (~CONSTANT)
-        # stitchr marks V-REGION entries as ~VARIABLE in the last pipe field
-        gene = allele.split("*")[0].upper()
-        existing = gene_map.get(gene)
-        if existing is None or "*01" in allele:
-            gene_map[gene] = (allele, seq)
+            return
+        entries.append((parts[1].strip().upper(), seq))
 
     with fa_path.open() as fh:
         for line in fh:
@@ -143,8 +137,32 @@ def _load_v_region_map(chain: str, species: str) -> dict[str, str]:
             else:
                 current_parts.append(line)
     _commit()
+    return entries
 
-    return {gene: seq for gene, (_, seq) in gene_map.items()}
+
+def _load_v_region_map(chain: str, species: str) -> dict[str, str]:
+    """
+    Return { gene_name_upper: nt_sequence } for the primary (*01) allele.
+    Prefer *01 but fall back to any allele when *01 is absent. This gene-base map
+    backs alignment (kmer_aligner), which scores against one representative
+    germline per gene; allele-specific reads go through `_load_v_allele_map`.
+    """
+    gene_map: dict[str, str] = {}
+    for allele, seq in _iter_v_region_entries(chain, species):
+        gene = allele.split("*")[0]
+        if gene not in gene_map or "*01" in allele:
+            gene_map[gene] = seq
+    return gene_map
+
+
+def _load_v_allele_map(chain: str, species: str) -> dict[str, str]:
+    """Return { full_allele_upper: nt_sequence }, keeping every allele so a caller
+    can request a specific one (e.g. TRAV6-5*04). First occurrence wins on the
+    rare duplicate allele id."""
+    allele_map: dict[str, str] = {}
+    for allele, seq in _iter_v_region_entries(chain, species):
+        allele_map.setdefault(allele, seq)
+    return allele_map
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +198,37 @@ def _cached_v_map(chain: str, species_str: str) -> dict[str, str]:
     return _load_v_region_map(chain, species_str)
 
 
+@lru_cache(maxsize=8)
+def _cached_v_allele_map(chain: str, species_str: str) -> dict[str, str]:
+    return _load_v_allele_map(chain, species_str)
+
+
+def resolve_v_germline(v_gene: str, species: str = "human") -> tuple[Optional[str], str]:
+    """Resolve a V gene name to (allele_used, v_region_nt), honoring an explicit
+    allele in the name (e.g. TRAV6-5*04). A bare gene name, or an allele absent
+    from germline, defaults to *01 (falling back to the lowest-numbered allele
+    when *01 itself is absent). Returns (None, "") when the gene is not found.
+
+    This mirrors reconstructor._resolve_germline so the dossier's reported allele,
+    germline sequence, and CDR loops all reflect the same requested allele instead
+    of silently collapsing to *01."""
+    gene_base = v_gene.split("*")[0].strip().upper()
+    parts = v_gene.split("*")
+    requested = parts[1].strip().upper() if len(parts) > 1 and parts[1].strip() else None
+    chain = _gene_to_chain(gene_base)
+    stitchr_species = _SPECIES_STITCHR.get(species.lower(), "HUMAN")
+    allele_map = _cached_v_allele_map(chain, stitchr_species)
+
+    if requested and f"{gene_base}*{requested}" in allele_map:
+        name = f"{gene_base}*{requested}"
+        return name, allele_map[name]
+    candidates = sorted(k for k in allele_map if k.split("*")[0] == gene_base)
+    if not candidates:
+        return None, ""
+    name = f"{gene_base}*01" if f"{gene_base}*01" in allele_map else candidates[0]
+    return name, allele_map[name]
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -197,12 +246,7 @@ def get_cdr1_cdr2(v_gene: str, species: str = "human") -> dict[str, Optional[str
     dict with keys: cdr1_aa, cdr2_aa, allele, cdr1_nt, cdr2_nt
     All values are None when the gene is not found.
     """
-    gene_base = v_gene.split("*")[0].strip().upper()
-    chain = _gene_to_chain(gene_base)
-    stitchr_species = _SPECIES_STITCHR.get(species.lower(), "HUMAN")
-
-    v_map = _cached_v_map(chain, stitchr_species)
-    nt_seq = v_map.get(gene_base)
+    allele_used, nt_seq = resolve_v_germline(v_gene, species)
     if not nt_seq:
         return {"cdr1_aa": None, "cdr2_aa": None, "allele": None,
                 "cdr1_nt": None, "cdr2_nt": None}
@@ -226,5 +270,5 @@ def get_cdr1_cdr2(v_gene: str, species: str = "human") -> dict[str, Optional[str
         "cdr2_aa":  cdr2_aa  or None,
         "cdr1_nt":  cdr1_nt  or None,
         "cdr2_nt":  cdr2_nt  or None,
-        "allele":   gene_base + "*01",
+        "allele":   allele_used,
     }

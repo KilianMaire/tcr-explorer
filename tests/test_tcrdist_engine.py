@@ -69,6 +69,16 @@ def test_resolve_v_loops_defaults_to_star01():
     assert te.resolve_v_loops("TRBV19", "human") == te.resolve_v_loops("TRBV19*01", "human")
 
 
+def test_resolve_v_loops_honors_explicit_non_star01_allele():
+    # An explicit allele that differs from *01 must return its own loops, not the
+    # *01 default. Mouse TRAV11*02 differs from TRAV11*01 in the CDR2 loop.
+    star01 = te.resolve_v_loops("TRAV11*01", "mouse")
+    star02 = te.resolve_v_loops("TRAV11*02", "mouse")
+    assert star01 is not None and star02 is not None
+    assert star02 != star01
+    assert star02[1] == "LVDQ...KDK"   # CDR2 of the *02 allele (S->... vs *01 LVHE...NDK)
+
+
 def test_resolve_v_loops_unknown_returns_none():
     assert te.resolve_v_loops("TRBVNONSENSE*01", "human") is None
     assert te.resolve_v_loops("", "human") is None

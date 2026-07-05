@@ -27,7 +27,7 @@ from .dossier_models import (
 )
 from .input_router import route
 from .annotator import annotate
-from .cdr_enricher import get_cdr1_cdr2, _gene_to_chain, _cached_v_map, _translate, _SPECIES_STITCHR
+from .cdr_enricher import get_cdr1_cdr2, resolve_v_germline, _gene_to_chain, _translate
 from .reconstructor import reconstruct_tcr
 from .models import IEDBHit
 from .dossier_epitopes import lookup_known_epitopes, resolve_id
@@ -126,9 +126,10 @@ def _gene_path(
                        confidence="high", kind="germline_lookup")
         )
 
-    # Germline sequence is honest only when the stitchr V-map actually holds it.
-    stitchr_species = _SPECIES_STITCHR.get(request.species.lower(), "HUMAN")
-    v_nt = _cached_v_map(_gene_to_chain(gene), stitchr_species).get(call.upper())
+    # Germline sequence is honest only when the germline map actually holds it.
+    # Resolve the same allele get_cdr1_cdr2 reported (honors an explicit allele in
+    # the gene name, else *01) so the germline sequence matches the V call.
+    _, v_nt = resolve_v_germline(gene, request.species)
     if v_nt:
         v.germline_aa = _translate(v_nt).rstrip("*") or None
         if want_germ:
