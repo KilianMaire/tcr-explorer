@@ -16,3 +16,8 @@ data/raw/
 
 # Internal dev notes, not for the public repo
 CLAUDE.md
+
+# AI tool footprints, never track
+.claude/
+.cursor/
+.aider*
