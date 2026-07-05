@@ -281,29 +281,3 @@ class TestGeneRecordIedbHits:
         r = GeneRecord(source="vdjdb", gene_name="TRBV19", sequence="CASSIRSSYEQYF",
                        iedb_hits=[])
         assert r.iedb_hits == []
-
-
-class TestGeneRecordScoringFields:
-    def test_scoring_fields_default_to_none(self):
-        r = GeneRecord(source="vdjdb", gene_name="TRBV19", sequence="CASSIRSSYEQYF")
-        assert r.batman_score is None
-        assert r.pmhc_score is None
-        assert r.tcrdist_score is None
-        assert r.composite_score is None
-
-    def test_scoring_fields_accept_float(self):
-        r = GeneRecord(
-            source="vdjdb", gene_name="TRBV19", sequence="CASSIRSSYEQYF",
-            batman_score=0.72,
-            pmhc_score=0.88,
-            tcrdist_score=0.65,
-            composite_score=0.74,
-        )
-        assert r.batman_score == pytest.approx(0.72)
-        assert r.composite_score == pytest.approx(0.74)
-
-    def test_scoring_fields_reject_out_of_range(self):
-        with pytest.raises(ValidationError):
-            GeneRecord(source="vdjdb", gene_name="X", sequence="Y", batman_score=1.5)
-        with pytest.raises(ValidationError):
-            GeneRecord(source="vdjdb", gene_name="X", sequence="Y", pmhc_score=-0.1)

@@ -25,10 +25,6 @@ DOCKERIGNORE = PROJECT_ROOT / ".dockerignore"
 SOURCE_DIRS = [
     PROJECT_ROOT / "src",
     PROJECT_ROOT / "servers",
-    PROJECT_ROOT / "pipeline",
-    PROJECT_ROOT / "models",
-    PROJECT_ROOT / "structural",
-    PROJECT_ROOT / "mlops",
 ]
 
 # Pattern to extract env var names from os.getenv("X", ...) or os.environ.get("X", ...)

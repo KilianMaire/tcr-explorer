@@ -2,8 +2,6 @@
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
-import requests
-
 from tcr_explorer.file_ingest import parse_vdjdb_tsv
 
 TSV = (
@@ -28,59 +26,3 @@ assert records[0].region == "CDR3"
 assert records[0].source == "vdjdb"
 assert records[0].sequence == "CASSIRSSYEQYF"
 print("All smoke checks passed.")
-
-# BATMAN server health
-try:
-    r = requests.get("http://localhost:8105/health", timeout=3)
-    print(f"batman: {r.json()}")
-except Exception as e:
-    print(f"batman: OFFLINE ({e})")
-
-# Test /predict/activation
-try:
-    r = requests.post("http://localhost:8000/predict/activation", json={
-        "tcr_cdr3": "CASSIRSSYEQYF",
-        "tcr_v_gene": "TRBV19",
-        "hla_allele": "HLA-A*02:01",
-        "candidate_peptides": ["GILGFVFTL", "NLVPMVATV"],
-    }, timeout=30)
-    data = r.json()
-    print(f"/predict/activation: {len(data['results'])} peptides scored")
-    for row in data["results"]:
-        print(f"  {row['peptide']}: composite={row['composite_score']}")
-except Exception as e:
-    print(f"/predict/activation: ERROR ({e})")
-
-# TEMPO server health
-try:
-    r = requests.get("http://localhost:8106/health", timeout=3)
-    print(f"tempo: {r.json()}")
-except Exception as e:
-    print(f"tempo: OFFLINE ({e})")
-
-# TEMPO /tempo/score
-try:
-    r = requests.post("http://localhost:8106/tempo/score", json={
-        "v_gene": "TRAV12-2",
-        "j_gene": "TRAJ30",
-        "cdr3": "CAVGDDKIIF",
-        "chain": "alpha",
-        "species": "human",
-    }, timeout=10)
-    data = r.json()
-    print(f"/tempo/score: log_likelihood={data.get('log_likelihood')}")
-except Exception as e:
-    print(f"/tempo/score: ERROR ({e})")
-
-# Cross-reactivity prediction via main API
-try:
-    r = requests.post("http://localhost:8000/predict/crossreactivity", json={
-        "reference_peptide": "LLWNGPMAV",
-        "variant_peptides": ["ALWNGPMAV"],
-        "mhc_allele": "HLA-A*02:01",
-        "mhc_class": "I",
-    }, timeout=10)
-    data = r.json()
-    print(f"/predict/crossreactivity: {len(data.get('results', []))} variants scored")
-except Exception as e:
-    print(f"/predict/crossreactivity: ERROR ({e})")
