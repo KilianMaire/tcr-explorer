@@ -694,10 +694,18 @@ def _enable_remote_mcp_if_configured() -> None:
     if not os.getenv("TCR_EXPLORER_MCP_HTTP"):
         return
     from contextlib import asynccontextmanager
+    from mcp.server.transport_security import TransportSecuritySettings
     from .mcp_server import mcp as _mcp
 
     # Serve the handler at the mount root so the public path is exactly /mcp.
     _mcp.settings.streamable_http_path = "/"
+    # DNS-rebinding protection only allows localhost hosts by default, which
+    # rejects any public host with "Invalid Host header". It guards LOCAL servers
+    # against browser rebinding attacks and does not apply to a public server that
+    # is meant to be reached over the internet, so disable it for this deployment.
+    _mcp.settings.transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=False
+    )
     app.mount("/mcp", _mcp.streamable_http_app())
 
     @asynccontextmanager
