@@ -27,17 +27,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install the package (pins the tcrdist extra for the authoritative metric).
 RUN pip install "tcr-explorer[tcrdist] @ https://github.com/KilianMaire/tcr-explorer/archive/db45c273de5fa53bcff42b86970b0e917c5ee663.tar.gz"
 
-# Build the IEDB-only records index into $TCR_EXPLORER_DATA at build time.
-# (A build path avoids IEDB being fetched on every container start; /index is
-# used instead of /data so a Space persistent-storage mount cannot shadow it.)
-RUN python -c "import os; from pathlib import Path; \
-from tcr_explorer.data_sources import download_iedb; \
-from tcr_explorer.records_build import build_index; \
-raw=Path('/tmp/raw'); raw.mkdir(parents=True, exist_ok=True); \
-r=download_iedb(raw); assert r.ok, ('IEDB download failed: '+str(r.error)); \
-os.makedirs('/index', exist_ok=True); \
-m=build_index(str(raw), '/index/records_index.parquet', '/index/records_index.meta.json'); \
-print('IEDB index rows:', m['rows_total'])"
+# Bake the pre-built IEDB-only records index. It is built once with
+# deploy/build_iedb_index.py and copied into the Space repo next to this
+# Dockerfile (see deploy/DEPLOY.md), so the build needs no network to iedb.org
+# (which times out from datacenter build runners) and cold starts are fast.
+# /index is used instead of /data so a Space persistent-storage mount cannot
+# shadow it.
+RUN mkdir -p /index
+COPY records_index.parquet /index/records_index.parquet
+COPY records_index.meta.json /index/records_index.meta.json
 
 # Hugging Face Spaces routes to the port declared as app_port in README.md.
 EXPOSE 7860
