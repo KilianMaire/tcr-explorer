@@ -9,9 +9,11 @@ TCR Explorer retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns ge
 The package bundles the IMGT germline but ships no record datasets. Before any tool can return results, the user runs one command that downloads the four record sources (VDJdb, IEDB, McPAS, TCR3d) into a local folder and builds a single harmonized index. The germline is already present, so this step does not touch IMGT.
 
 ```bash
-pip install tcr-explorer          # or: uvx --from tcr-explorer ...
-tcr-explorer-refresh              # first run: download plus build (a few minutes, roughly 60 MB)
+pip install "tcr-explorer[tcrdist]"   # recommended; drop [tcrdist] for a leaner install
+tcr-explorer-refresh                  # first run: download plus build (a few minutes, roughly 60 MB)
 ```
+
+The `tcrdist` extra gives authoritative similarity scoring. Either way the tool does both automatically: it uses tcrdist when the extra is present and falls back to the bundled BLOSUM CDR3 distance otherwise, reporting which one it used in each result's `engine` field. Paired similarity needs the extra (it is tcrdist only).
 
 If a tool reports that the data is not downloaded yet (a `*_index_unavailable` warning, or a `DataNotReadyError`), do not try to work around it. Tell the user to run `tcr-explorer-refresh` once, then retry. A query never downloads on its own. This is deliberate.
 
@@ -22,10 +24,10 @@ If a tool returns a `records_index_stale` warning, the local index is older than
 For a desktop or CLI MCP client, add an MCP server that runs the console entry point:
 
 ```json
-{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
+{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer[tcrdist]","tcr-explorer-mcp"]}}}
 ```
 
-If `uvx` is unavailable, run `python -m tcr_explorer.mcp_server`. You can also run it straight from the public repo: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
+If `uvx` is unavailable, run `python -m tcr_explorer.mcp_server`. You can also run it straight from the public repo: `uvx --from "git+https://github.com/KilianMaire/tcr-explorer[tcrdist]" tcr-explorer-mcp`.
 
 Some web only assistants do not run local stdio MCP servers the same way. For a paste and go flow, use a desktop or CLI MCP client, or call the REST API directly (see below).
 

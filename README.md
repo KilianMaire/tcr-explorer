@@ -15,17 +15,19 @@ This means the tool never redistributes the record datasets (their licenses vary
 
 ## Install
 
-```bash
-pip install tcr-explorer
-```
-
-For authoritative tcrdist similarity scoring (the same metric as tcrdist3, computed offline), install the optional extra:
+Recommended: include the `tcrdist` extra, so similarity uses the authoritative tcrdist metric (the same metric as tcrdist3, computed offline).
 
 ```bash
 pip install "tcr-explorer[tcrdist]"
 ```
 
-Without it, similarity falls back to the bundled BLOSUM CDR3 distance and says so in a warning. See [Similarity scoring](#similarity-scoring).
+Prefer a leaner install? The base package works fully on its own; only similarity scoring changes.
+
+```bash
+pip install tcr-explorer
+```
+
+You do not choose a mode at run time. The tool does both automatically: it detects at each query whether the tcrdist engine is available and uses it when it is, otherwise it falls back to the bundled BLOSUM CDR3 distance and says so in a warning. Every result reports which engine scored it in an `engine` field. So the only difference between the two installs is whether similarity can reach tcrdist, and you can add it later at any time (`pip install "tcr-explorer[tcrdist]"` in the same environment) without reinstalling anything else. Paired similarity is the one feature that needs the extra: it is tcrdist only and has no BLOSUM fallback. See [Similarity scoring](#similarity-scoring).
 
 Or from a checkout:
 
@@ -67,19 +69,19 @@ curl http://localhost:8000/health   # {"status":"ok"}
 
 ## Connect your assistant
 
-TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add this to your assistant's MCP configuration:
+TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add this to your assistant's MCP configuration. It pulls the `tcrdist` extra so similarity uses the authoritative metric; drop `[tcrdist]` for the leaner install (similarity then uses the BLOSUM fallback automatically).
 
 ```json
-{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
+{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer[tcrdist]","tcr-explorer-mcp"]}}}
 ```
 
 Or paste this prompt into your assistant to have it set the connection up for you:
 
 ```
-Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. First install it (pip install tcr-explorer, or use uvx --from tcr-explorer), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
+Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. First install it (pip install "tcr-explorer[tcrdist]", or use uvx --from "tcr-explorer[tcrdist]"), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from "tcr-explorer[tcrdist]" tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
 ```
 
-You can also run it straight from the public repo without installing: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
+You can also run it straight from the public repo without installing: `uvx --from "git+https://github.com/KilianMaire/tcr-explorer[tcrdist]" tcr-explorer-mcp`.
 
 The read only MCP tools are `retrieve_tcr_records`, `assign_tcr_alleles`, `get_tcr_dossier`, `find_similar_tcrs`, `find_similar_paired_tcrs`, `align_tcr_genes`, and `ask_tcr`.
 
@@ -171,7 +173,7 @@ All optional.
 
 ## Similarity scoring
 
-`find_similar_tcrs` (and the neighbours block of a dossier) reports which engine scored the result in an `engine` field.
+The tool picks the scoring engine automatically at each query, with no configuration or mode switch. `find_similar_tcrs` (and the neighbours block of a dossier) reports which engine it used in an `engine` field.
 
 - **tcrdist** (when the `tcrdist` extra is installed). The authoritative tcrdist metric, reproduced offline from the vendored germline CDR table plus the `pwseqdist` engine (the same engine tcrdist3 uses). It matches tcrdist3 exactly on the integer distances (a parity test against tcrdist3 guards this). Distances are absolute, so you can threshold and compare them across queries. Human and mouse, single chain.
 - **blosum_cdr3** (the default without the extra). The bundled BLOSUM CDR3 distance, a lighter approximation used only on the CDR3. When this engine runs, the result carries a `tcrdist_unavailable` warning. It also handles records whose V gene is missing, which tcrdist cannot score.

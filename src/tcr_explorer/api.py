@@ -1200,8 +1200,8 @@ pf.addEventListener('submit',async e=>{e.preventDefault();const btn=pf.querySele
   const b=await r.json();p_out.innerHTML=pairedTable(b);
  }catch(err){p_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
  finally{btn.disabled=false;btn.textContent=t0;}});
-const MCP_CONFIG_TEXT='{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}';
-const MCP_PROMPT_TEXT="Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.";
+const MCP_CONFIG_TEXT='{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer[tcrdist]","tcr-explorer-mcp"]}}}';
+const MCP_PROMPT_TEXT="Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from 'tcr-explorer[tcrdist]' tcr-explorer-mcp` (if uvx is unavailable, `pip install 'tcr-explorer[tcrdist]'` then run `python -m tcr_explorer.mcp_server`). The tcrdist extra gives authoritative similarity scoring; drop [tcrdist] for a leaner install that falls back to BLOSUM automatically. It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.";
 document.getElementById('mcpConfigOut').textContent=MCP_CONFIG_TEXT;
 document.getElementById('mcpPromptOut').textContent=MCP_PROMPT_TEXT;
 document.getElementById('copyConfigBtn').addEventListener('click',()=>{navigator.clipboard.writeText(MCP_CONFIG_TEXT).catch(()=>{});});
