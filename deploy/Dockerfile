@@ -25,7 +25,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TCR_EXPLORER_RATE_LIMIT_PER_MIN=120
 
 # Install the package (pins the tcrdist extra for the authoritative metric).
-RUN pip install "tcr-explorer[tcrdist] @ https://github.com/KilianMaire/tcr-explorer/archive/db45c273de5fa53bcff42b86970b0e917c5ee663.tar.gz"
+RUN pip install "tcr-explorer[tcrdist] @ https://github.com/KilianMaire/tcr-explorer/archive/7bf79b0770bdcb60b5e45bee90295b0f6f58aa87.tar.gz"
 
 # Bake the pre-built IEDB-only records index. It is built once with
 # deploy/build_iedb_index.py and copied into the Space repo next to this
@@ -40,4 +40,7 @@ COPY records_index.meta.json /index/records_index.meta.json
 # Hugging Face Spaces routes to the port declared as app_port in README.md.
 EXPOSE 7860
 
-CMD ["uvicorn", "tcr_explorer.api:app", "--host", "0.0.0.0", "--port", "7860"]
+# --forwarded-allow-ips "*" makes uvicorn trust the Space proxy's
+# X-Forwarded-Proto, so the /mcp -> /mcp/ redirect uses https (an http redirect
+# behind the proxy makes the edge return 421).
+CMD ["uvicorn", "tcr_explorer.api:app", "--host", "0.0.0.0", "--port", "7860", "--forwarded-allow-ips", "*"]
