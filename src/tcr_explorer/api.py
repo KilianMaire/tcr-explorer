@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 
 from .cdr_enricher import get_cdr1_cdr2
 from .config import settings
@@ -620,6 +621,34 @@ document.getElementById('copyPromptBtn').addEventListener('click',()=>{navigator
 </script></body></html>"""
 
 
+# Public deployments serve germline features only (no record databases, which are
+# not redistributable). Setting TCR_EXPLORER_DEMO shows a banner that says so; a
+# local/full install leaves it unset and the UI is unchanged.
+_DEMO_BANNER = (
+    '<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:8px;'
+    'padding:.7rem 1rem;margin:0 0 1rem;font-size:.9rem;line-height:1.45">'
+    '<strong>Public demo.</strong> Germline features only: allele assignment, '
+    'chain reconstruction, alignment, and CDR loops. The record databases '
+    '(VDJdb, IEDB, McPAS, TCR3d) are not included here for licensing reasons, so '
+    'record retrieval and neighbour search return nothing on this instance. For '
+    'the full tool, install locally: <code>pip install "tcr-explorer[tcrdist]"</code>.'
+    '</div>'
+)
+
+
+def _ui_html() -> str:
+    if os.getenv("TCR_EXPLORER_DEMO"):
+        return _UI_HTML.replace('<div class="hero">', _DEMO_BANNER + '<div class="hero">', 1)
+    return _UI_HTML
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    # The interactive tool lives at /ui; send the bare host there so a deployed
+    # instance lands on the UI instead of a 404.
+    return RedirectResponse(url="/ui")
+
+
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> HTMLResponse:
-    return HTMLResponse(_UI_HTML)
+    return HTMLResponse(_ui_html())
