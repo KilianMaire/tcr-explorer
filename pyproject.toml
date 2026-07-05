@@ -44,6 +44,11 @@ dependencies = [
 
 [project.optional-dependencies]
 ui-legacy = ["streamlit>=1.35.0"]
+# Authoritative tcrdist similarity scoring. `pwseqdist` is the same distance
+# engine tcrdist3 uses; the germline CDR loops come from the vendored reference
+# table (data/tcrdist/). Without this extra, similarity falls back to the bundled
+# BLOSUM CDR3 distance and says so in a warning.
+tcrdist = ["pwseqdist>=0.6"]
 
 [project.scripts]
 tcr-explorer-mcp = "tcr_explorer.mcp_server:main"
@@ -67,6 +72,8 @@ tcr_explorer = [
     "data/germline/*/*.fasta",
     "data/germline/*/*.tsv",
     "data/germline/*/*.txt",
+    "data/tcrdist/*.tsv",
+    "data/tcrdist/*.md",
 ]
 
 [tool.pytest.ini_options]

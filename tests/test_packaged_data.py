@@ -5,10 +5,17 @@ from pathlib import Path
 import tcr_explorer
 
 
-def test_package_data_dir_has_blosum_and_germline():
+def test_package_data_dir_has_blosum_germline_and_tcrdist():
     data = Path(tcr_explorer.__file__).resolve().parent / "data"
     names = sorted(p.name for p in data.iterdir()) if data.exists() else []
-    assert names == ["blosum62.json", "germline"], names
+    assert names == ["blosum62.json", "germline", "tcrdist"], names
+
+
+def test_tcrdist_reference_table_is_vendored():
+    data = Path(tcr_explorer.__file__).resolve().parent / "data"
+    # tcrdist V/J CDR reference table IS vendored (tcrdist3, MIT; CDRs from IMGT CC BY 4.0).
+    assert (data / "tcrdist" / "alphabeta_gammadelta_db.tsv").exists()
+    assert (data / "tcrdist" / "ATTRIBUTION.md").exists()
 
 
 def test_germline_is_vendored_records_are_not():

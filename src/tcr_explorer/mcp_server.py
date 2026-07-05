@@ -10,9 +10,10 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .dossier_models import DossierRequest, AskRequest, RecordsRequest, SimilarResponse
+from .dossier_models import DossierRequest, AskRequest, RecordsRequest, SimilarResponse, PairedSimilarResponse
 from .dossier_models import AlignRequest as _AlignRequest
 from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
+from .similarity import find_similar_paired_tcrs as find_similar_paired_tcrs_fn
 from .ask import answer as answer_fn
 from .records import retrieve_records as retrieve_records_fn
 from .tcr_align import assign as assign_fn
@@ -43,14 +44,33 @@ def get_tcr_dossier(query: str, species: str = "human", input_type: str = "auto"
 @mcp.tool(annotations=_READ_ONLY)
 def find_similar_tcrs(cdr3: str, v_gene: str, j_gene: str, species: str = "human",
                       top_k: int = 10, min_similarity: float = 0.0) -> dict:
-    """Return the nearest KNOWN TCRs to a query CDR3 (with V and J) from the unitcr
+    """Return the nearest KNOWN TCRs to a query CDR3 (with V and J) from the
     reference set, with their epitopes, MHC, and antigens. These are an INFERRED,
     weaker signal (epitopes of similar TCRs), NOT confirmed specificity of the
-    query. Each neighbour carries similarity and distance. Human beta only."""
+    query. Each neighbour carries similarity and distance. Works for a single alpha
+    or beta chain, human or mouse. The `engine` field says whether the authoritative
+    tcrdist metric scored it (`tcrdist`, absolute distances) or the bundled BLOSUM
+    CDR3 fallback (`blosum_cdr3`, with a tcrdist_unavailable warning)."""
     neigh, engine, total, warnings = find_similar_tcrs_fn(
         cdr3, v_gene, j_gene, species=species, top_k=top_k, min_similarity=min_similarity)
     return SimilarResponse(neighbours=neigh, engine=engine,
                            total_candidates=total, warnings=warnings).model_dump()
+
+@mcp.tool(annotations=_READ_ONLY)
+def find_similar_paired_tcrs(cdr3_a: str, v_a: str, cdr3_b: str, v_b: str,
+                             species: str = "human", top_k: int = 10,
+                             min_similarity: float = 0.0) -> dict:
+    """Return the nearest KNOWN alpha/beta paired TCRs to a paired query, scored by
+    the authoritative paired tcrdist (the sum of the alpha and beta single chain
+    tcrdist). As with single chain similarity, the neighbours' epitopes are an
+    INFERRED, weaker signal, not confirmed specificity. Paired scoring is tcrdist
+    only: it needs the tcrdist extra installed and both query V genes in the
+    reference table; otherwise it returns no neighbours with an explanatory warning.
+    Human or mouse."""
+    neigh, engine, total, warnings = find_similar_paired_tcrs_fn(
+        cdr3_a, v_a, cdr3_b, v_b, species=species, top_k=top_k, min_similarity=min_similarity)
+    return PairedSimilarResponse(neighbours=neigh, engine=engine,
+                                 total_candidates=total, warnings=warnings).model_dump()
 
 @mcp.tool(annotations=_READ_ONLY)
 def ask_tcr(query: str, species: str = "human") -> dict:

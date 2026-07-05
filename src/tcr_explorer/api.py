@@ -25,6 +25,8 @@ from .dossier_models import (
     RecordsResponse,
     SimilarRequest,
     SimilarResponse,
+    PairedSimilarRequest,
+    PairedSimilarResponse,
     TCRDossier,
 )
 from .mcp_clients import ToolServerClient
@@ -777,6 +779,25 @@ def tcr_similar(req: SimilarRequest):
     return SimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)
 
 
+@app.post("/v1/tcr/similar_paired", response_model=PairedSimilarResponse)
+def tcr_similar_paired(req: PairedSimilarRequest):
+    # Synchronous by design, same rationale as /v1/tcr/similar above. Paired
+    # scoring is tcrdist only (the paired distance is alpha tcrdist plus beta
+    # tcrdist); without the tcrdist extra it returns no neighbours and says so.
+    from .similarity import find_similar_paired_tcrs  # local import: avoids import cycles
+
+    neigh, engine, total, warnings = find_similar_paired_tcrs(
+        req.cdr3_a,
+        req.v_a,
+        req.cdr3_b,
+        req.v_b,
+        species=req.species,
+        top_k=req.top_k,
+        min_similarity=req.min_similarity,
+    )
+    return PairedSimilarResponse(neighbours=neigh, engine=engine, total_candidates=total, warnings=warnings)
+
+
 @app.post("/v1/tcr/records", response_model=RecordsResponse)
 def tcr_records(req: RecordsRequest):
     # Synchronous by design, same rationale as /v1/tcr/dossier above: retrieval
@@ -892,6 +913,7 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <button type="button" class="chip" data-tool="assign">assign</button>
 <button type="button" class="chip" data-tool="dossier">dossier</button>
 <button type="button" class="chip" data-tool="similar">similar</button>
+<button type="button" class="chip" data-tool="paired">paired</button>
 <button type="button" class="chip" data-tool="reconstruct">reconstruct</button>
 <button type="button" class="chip" data-tool="align">align</button>
 </div>
@@ -909,6 +931,25 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 </div>
 </form>
 <div id="rc_out"></div>
+</div>
+<div class="searchbar hiddenform" id="pairform">
+<h2>Find paired (alpha and beta) neighbours</h2>
+<p class="muted">Give both chains of a receptor. TCR Explorer scores paired references (reconstructed from the index by pairing key) with the paired tcrdist, which is the sum of the alpha and beta single chain distances. These neighbours' epitopes are an inferred, weaker signal, not confirmed specificity. Paired scoring needs the tcrdist extra installed and both query V genes present in the reference table; otherwise it returns nothing with an explanatory warning.</p>
+<form id="pf">
+<div class="searchrow">
+<input id="p_ca" placeholder="alpha CDR3 e.g. CAVNFGGGKLIF">
+<input id="p_va" placeholder="alpha V gene e.g. TRAV12-1">
+</div>
+<div class="searchrow">
+<input id="p_cb" placeholder="beta CDR3 e.g. CASSIRSSYEQYF">
+<input id="p_vb" placeholder="beta V gene e.g. TRBV19">
+</div>
+<div class="searchrow">
+<select id="p_sp"><option>human</option><option>mouse</option></select>
+<button type="submit">Find paired</button>
+</div>
+</form>
+<div id="p_out"></div>
 </div>
 <div class="searchbar hiddenform" id="alignform">
 <h2>Align a gene set</h2>
@@ -984,6 +1025,16 @@ function renderRecords(data){if(!data)return '';
 function neighTable(ns){if(!ns||!ns.length)return '<p class="muted">No matching known TCRs found in the reference database for this CDR3.</p>';
  let h='<h3>Similar TCRs (inferred, not confirmed specificity)</h3><table><tr><th>CDR3</th><th>V</th><th>sim</th><th>epitope</th></tr>';
  for(const n of ns)h+=`<tr><td>${esc(n.cdr3_b_aa)}</td><td>${esc(n.v_b_gene)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;return h+'</table>';}
+function pairedTable(b){
+ const ns=b.neighbours||[];
+ let h='<div class="card"><h3>Paired neighbours <span class="muted">(engine '+esc(b.engine)+', '+esc(b.total_candidates)+' paired candidates)</span></h3>';
+ if(!ns.length){h+='<p class="muted">No paired neighbours returned.</p>';}
+ else{h+='<p class="muted">Inferred, not confirmed specificity. Distance is the absolute paired tcrdist (lower is closer).</p>';
+  h+='<table><tr><th>alpha CDR3</th><th>alpha V</th><th>beta CDR3</th><th>beta V</th><th>dist</th><th>sim</th><th>epitope</th></tr>';
+  for(const n of ns)h+=`<tr><td><code>${esc(n.cdr3_a_aa)}</code></td><td>${esc(n.v_a_gene)}</td><td><code>${esc(n.cdr3_b_aa)}</code></td><td>${esc(n.v_b_gene)}</td><td>${esc(n.distance)}</td><td>${esc(n.similarity)}</td><td>${esc(n.epitope_aa)}</td></tr>`;
+  h+='</table>';}
+ if(b.warnings&&b.warnings.length)h+='<p class="warn">'+esc(b.warnings.map(w=>w.message||w.code).join('; '))+'</p>';
+ return h+'</div>';}
 function render(b){let h=`<div class="card"><h3>intent: ${esc(b.intent)} <span class="muted">(source ${esc(b.plan_source)}, llm ${b.llm_used})</span></h3>`;
  if(b.dossier){const d=b.dossier;h+=`<p><b>${esc(d.summary)}</b></p><p>chain: ${esc(d.chain)} &middot; species: ${esc(d.species)} &middot; status: ${esc(d.status)}</p>`;
   if(d.status==='partial' && !(d.genes&&d.genes.v) && !(d.known_epitopes&&d.known_epitopes.length)){h+='<p class="muted">A CDR3 on its own cannot identify V/D/J. Provide the V and J genes (V+J+CDR3), a gene name, or a full V(D)J sequence to get an annotation.</p>';}
@@ -1102,6 +1153,7 @@ chips.addEventListener('click',e=>{
  const tool=btn.dataset.tool;
  if(tool==='reconstruct'){toggleHiddenForm('rcform');return;}
  if(tool==='align'){toggleHiddenForm('alignform');return;}
+ if(tool==='paired'){toggleHiddenForm('pairform');return;}
  const q=document.getElementById('q').value,sp=speciesOverride();
  runQuery(q,sp,tool);
 });
@@ -1137,8 +1189,19 @@ rcf.addEventListener('submit',async e=>{e.preventDefault();const btn=rcf.querySe
   }
  }catch(err){rc_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
  finally{btn.disabled=false;btn.textContent=t0;}});
+const pf=document.getElementById('pf'),p_out=document.getElementById('p_out');
+pf.addEventListener('submit',async e=>{e.preventDefault();const btn=pf.querySelector('button');const t0=btn.textContent;btn.disabled=true;btn.textContent='Finding...';p_out.innerHTML='<p class="loading">Finding...</p>';
+ try{
+  const r=await fetch('/v1/tcr/similar_paired',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({cdr3_a:document.getElementById('p_ca').value,v_a:document.getElementById('p_va').value,
+    cdr3_b:document.getElementById('p_cb').value,v_b:document.getElementById('p_vb').value,
+    species:document.getElementById('p_sp').value})});
+  if(!r.ok){p_out.innerHTML='<p class="warn">Request failed ('+r.status+')</p>';return;}
+  const b=await r.json();p_out.innerHTML=pairedTable(b);
+ }catch(err){p_out.innerHTML='<p class="warn">Error: '+esc(String(err))+'</p>';}
+ finally{btn.disabled=false;btn.textContent=t0;}});
 const MCP_CONFIG_TEXT='{"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}';
-const MCP_PROMPT_TEXT="Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.";
+const MCP_PROMPT_TEXT="Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. Add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, `pip install tcr-explorer` then run `python -m tcr_explorer.mcp_server`). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, find_similar_paired_tcrs, and align_tcr_genes. After adding it, confirm the connection and suggest three example questions I can ask.";
 document.getElementById('mcpConfigOut').textContent=MCP_CONFIG_TEXT;
 document.getElementById('mcpPromptOut').textContent=MCP_PROMPT_TEXT;
 document.getElementById('copyConfigBtn').addEventListener('click',()=>{navigator.clipboard.writeText(MCP_CONFIG_TEXT).catch(()=>{});});

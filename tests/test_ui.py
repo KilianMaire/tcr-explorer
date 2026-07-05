@@ -11,6 +11,18 @@ def test_ui_served():
     assert "TCR" in body
 
 
+def test_ui_has_paired_similarity_form():
+    body = client.get("/ui").text
+    # the paired chip, its form inputs, the endpoint call, and the render helper.
+    assert 'data-tool="paired"' in body
+    assert 'id="pairform"' in body
+    assert 'id="p_ca"' in body and 'id="p_vb"' in body
+    assert "/v1/tcr/similar_paired" in body
+    assert "function pairedTable(" in body
+    # paired render must escape data-derived cells too.
+    assert "esc(n.cdr3_a_aa)" in body
+
+
 def test_ui_escapes_rendered_data():
     """Guard against a silent XSS regression: the render path must define esc()
     and route data through it before writing to innerHTML."""

@@ -16,7 +16,7 @@ WarningCode = Literal[
     "tcrdist_unavailable", "similarity_index_unavailable", "no_reference_candidates",
     "species_unsupported", "segment_unavailable", "too_few_sequences", "alignment_failed",
     "no_pairing_found", "records_index_unavailable", "records_index_stale",
-    "nonstandard_residues",
+    "nonstandard_residues", "tcrdist_candidates_skipped",
 ]
 ProvBlock = Literal["annotation", "germline", "regions", "junction", "full_sequence", "known_epitopes", "neighbours", "alignment"]
 ProvSource = Literal["igblast", "kmer_align", "cdr_enricher", "reconstructor", "vdjdb", "iedb", "unitcr", "tcrdist", "blosum_cdr3"]
@@ -90,6 +90,39 @@ class SimilarRequest(BaseModel):
 
 class SimilarResponse(BaseModel):
     neighbours: list[Neighbour] = Field(default_factory=list)
+    engine: str
+    total_candidates: int = 0
+    warnings: list["DossierWarning"] = Field(default_factory=list)
+
+class PairedNeighbour(BaseModel):
+    cdr3_a_aa: str
+    v_a_gene: Optional[str] = None
+    cdr3_b_aa: str
+    v_b_gene: Optional[str] = None
+    distance: float
+    """Absolute paired tcrdist (the sum of the alpha and beta single chain
+    tcrdist). Comparable across queries."""
+    similarity: float
+    """Within-query relative similarity, normalised to the per-query candidate
+    maximum distance; only similarity==1.0 (identical) is absolute. Threshold on
+    the absolute `distance` field for cross-query comparisons."""
+    epitope_aa: Optional[str] = None
+    antigen: Optional[str] = None
+    antigen_organism: Optional[str] = None
+    mhc_class: Optional[str] = None
+    mhc_a: Optional[str] = None
+
+class PairedSimilarRequest(BaseModel):
+    cdr3_a: str = Field(..., description="Alpha chain CDR3 amino acid sequence.", examples=["CAVNFGGGKLIF"])
+    v_a: str = Field(..., description="Alpha V gene, e.g. TRAV12-1", examples=["TRAV12-1", "TRAV1-2"])
+    cdr3_b: str = Field(..., description="Beta chain CDR3 amino acid sequence.", examples=["CASSIRSSYEQYF"])
+    v_b: str = Field(..., description="Beta V gene, e.g. TRBV19", examples=["TRBV19", "TRBV28"])
+    species: SpeciesType = Field("human", description="Organism of the query.", examples=["human", "mouse"])
+    top_k: int = Field(default=10, ge=1, le=200, description="Maximum number of paired neighbours to return (1-200).", examples=[10, 50])
+    min_similarity: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum relative similarity (0.0-1.0); only 1.0 is truly identical.", examples=[0.0, 0.8])
+
+class PairedSimilarResponse(BaseModel):
+    neighbours: list[PairedNeighbour] = Field(default_factory=list)
     engine: str
     total_candidates: int = 0
     warnings: list["DossierWarning"] = Field(default_factory=list)

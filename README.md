@@ -19,6 +19,14 @@ This means the tool never redistributes the record datasets (their licenses vary
 pip install tcr-explorer
 ```
 
+For authoritative tcrdist similarity scoring (the same metric as tcrdist3, computed offline), install the optional extra:
+
+```bash
+pip install "tcr-explorer[tcrdist]"
+```
+
+Without it, similarity falls back to the bundled BLOSUM CDR3 distance and says so in a warning. See [Similarity scoring](#similarity-scoring).
+
 Or from a checkout:
 
 ```bash
@@ -73,7 +81,7 @@ Set up the TCR Explorer MCP server so you can answer T cell receptor questions a
 
 You can also run it straight from the public repo without installing: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
 
-The read only MCP tools are `retrieve_tcr_records`, `assign_tcr_alleles`, `get_tcr_dossier`, `find_similar_tcrs`, `align_tcr_genes`, and `ask_tcr`.
+The read only MCP tools are `retrieve_tcr_records`, `assign_tcr_alleles`, `get_tcr_dossier`, `find_similar_tcrs`, `find_similar_paired_tcrs`, `align_tcr_genes`, and `ask_tcr`.
 
 ## REST API
 
@@ -107,6 +115,16 @@ curl -s -X POST http://localhost:8000/v1/tcr/assign \
 curl -s -X POST http://localhost:8000/v1/tcr/records \
   -H "Content-Type: application/json" \
   -d '{"cdr3":"CASSLGGAGGTDTQYF","species":"human","limit":20}'
+```
+
+### Similarity
+
+**POST** `/v1/tcr/similar` finds single chain neighbours (alpha or beta) of a query CDR3. **POST** `/v1/tcr/similar_paired` finds alpha/beta paired neighbours of a paired query. See [Similarity scoring](#similarity-scoring) for the engines.
+
+```bash
+curl -s -X POST http://localhost:8000/v1/tcr/similar_paired \
+  -H "Content-Type: application/json" \
+  -d '{"cdr3_a":"CAVNFGGGKLIF","v_a":"TRAV12-1","cdr3_b":"CASSIRSSYEQYF","v_b":"TRBV19","species":"human"}'
 ```
 
 ### Chain reconstruction
@@ -151,6 +169,17 @@ All optional.
 | `LLM_BASE_URL` | *(empty)* | OpenAI compatible endpoint for the free text `ask` path (falls back to a heuristic parser when unset) |
 | `LLM_MODEL` | `local-model` | Model id for the `ask` path |
 
+## Similarity scoring
+
+`find_similar_tcrs` (and the neighbours block of a dossier) reports which engine scored the result in an `engine` field.
+
+- **tcrdist** (when the `tcrdist` extra is installed). The authoritative tcrdist metric, reproduced offline from the vendored germline CDR table plus the `pwseqdist` engine (the same engine tcrdist3 uses). It matches tcrdist3 exactly on the integer distances (a parity test against tcrdist3 guards this). Distances are absolute, so you can threshold and compare them across queries. Human and mouse, single chain.
+- **blosum_cdr3** (the default without the extra). The bundled BLOSUM CDR3 distance, a lighter approximation used only on the CDR3. When this engine runs, the result carries a `tcrdist_unavailable` warning. It also handles records whose V gene is missing, which tcrdist cannot score.
+
+When tcrdist is active, reference candidates whose V gene is not in the tcrdist table are skipped (their germline loops are unknown) and a `tcrdist_candidates_skipped` warning reports how many.
+
+Single chain search (`find_similar_tcrs`, `/v1/tcr/similar`) works for a query alpha or beta chain. Paired search (`find_similar_paired_tcrs`, `/v1/tcr/similar_paired`) scores an alpha/beta query against paired references (reconstructed from the index by pairing key) using the paired tcrdist, which is the sum of the alpha and beta single chain distances. Paired search is tcrdist only: without the extra, or when a query V gene is absent from the reference table, it returns no neighbours with an explanatory warning rather than a misleading fallback.
+
 ## Data sources
 
 TCR Explorer cites the following. The four record datasets are downloaded on your machine from their official endpoints and are not redistributed; the IMGT germline is bundled with the package under CC BY 4.0. Please cite the ones you use.
@@ -160,6 +189,7 @@ TCR Explorer cites the following. The four record datasets are downloaded on you
 - **McPAS-TCR** (downloaded). Tickotsky N. et al. McPAS-TCR: a manually curated catalogue of pathology associated T cell receptor sequences. Bioinformatics, 2017. <https://friedmanlab.weizmann.ac.il/McPAS-TCR/>
 - **TCR3d** (downloaded). Lin V. et al. TCR3d 2.0: expanding the T cell receptor structure database. Nucleic Acids Research, 2025. <https://tcr3d.ibbr.umd.edu>
 - **IMGT germline** (bundled, CC BY 4.0, release 20268-7). Lefranc M-P. et al. IMGT, the international ImMunoGeneTics information system. Reformatted via stitchr and IMGTgeneDL (MIT). See `src/tcr_explorer/data/germline/ATTRIBUTION.md`. <https://www.imgt.org>
+- **tcrdist germline CDR table** (bundled, MIT; CDRs from IMGT, CC BY 4.0). Mayer-Blackwell K. et al. TCR meta-clonotypes for biomarker discovery with tcrdist3. eLife, 2021. Used with `pwseqdist` for offline tcrdist scoring. See `src/tcr_explorer/data/tcrdist/ATTRIBUTION.md`. <https://github.com/kmayerb/tcrdist3>
 
 ## Run tests
 

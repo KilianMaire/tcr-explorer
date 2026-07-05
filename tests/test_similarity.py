@@ -1,13 +1,22 @@
 import pandas as pd
+import pytest
 
-from tcr_explorer import similarity
+from tcr_explorer import similarity, tcrdist_engine
 from tcr_explorer.similarity import find_similar_tcrs, cdr3_distance
 
 FIX = "tests/fixtures/unitcr_tiny.parquet"
 
+# The tcrdist engine needs the optional `pwseqdist` extra; guard tests that
+# require it so a base install (without `tcr-explorer[tcrdist]`) skips rather
+# than fails. The BLOSUM fallback tests below run either way.
+_needs_tcrdist = pytest.mark.skipif(
+    not tcrdist_engine.tcrdist_available(), reason="pwseqdist not installed (tcrdist extra)")
 
-def test_self_match_is_nearest(monkeypatch):
-    monkeypatch.setattr(similarity, "tcrdist3_available", lambda: False)
+
+def test_self_match_is_nearest_blosum_when_tcrdist_unavailable(monkeypatch):
+    # With the optional tcrdist engine absent, scoring falls back to the bundled
+    # BLOSUM CDR3 distance and carries the honest downgrade warning.
+    monkeypatch.setattr(tcrdist_engine, "tcrdist_available", lambda: False)
     neigh, engine, ncand, warns = find_similar_tcrs(
         "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", top_k=3, index_path=FIX)
     assert engine == "blosum_cdr3"
@@ -16,12 +25,25 @@ def test_self_match_is_nearest(monkeypatch):
     assert any(w.code == "tcrdist_unavailable" for w in warns)
 
 
-def test_engine_stays_blosum_and_warns_even_if_tcrdist_importable(monkeypatch):
-    # Even if tcrdist3 is importable, scoring is NOT wired to it, so the engine
-    # must stay honest ("blosum_cdr3") and still carry the downgrade warning.
-    monkeypatch.setattr(similarity, "tcrdist3_available", lambda: True)
+@_needs_tcrdist
+def test_self_match_is_nearest_tcrdist_when_available():
+    # With pwseqdist installed (the tcrdist extra), scoring uses the authoritative
+    # tcrdist metric: the engine is labelled "tcrdist", the exact self match sits at
+    # distance 0, and the downgrade warning must NOT appear.
     neigh, engine, ncand, warns = find_similar_tcrs(
         "CASSLGTEAFF", "TRBV20-1", "TRBJ1-1", top_k=3, index_path=FIX)
+    assert engine == "tcrdist"
+    assert neigh[0].cdr3_b_aa == "CASSLGTEAFF"
+    assert neigh[0].distance == 0.0
+    assert not any(w.code == "tcrdist_unavailable" for w in warns)
+
+
+@_needs_tcrdist
+def test_query_v_unresolvable_falls_back_to_blosum():
+    # A query V gene absent from the tcrdist reference cannot yield germline loops,
+    # so scoring falls back to BLOSUM and says so, rather than silently mis-scoring.
+    neigh, engine, ncand, warns = find_similar_tcrs(
+        "CASSLGTEAFF", "TRBVNONSENSE", "TRBJ1-1", top_k=3, index_path=FIX)
     assert engine == "blosum_cdr3"
     assert any(w.code == "tcrdist_unavailable" for w in warns)
 

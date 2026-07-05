@@ -43,12 +43,32 @@ def null_idx(tmp_path):
     return str(p)
 
 
-def test_find_similar_tcrs_tolerates_null_genes(null_idx):
+@pytest.mark.skipif(
+    not __import__("tcr_explorer.tcrdist_engine", fromlist=["x"]).tcrdist_available(),
+    reason="pwseqdist not installed (tcrdist extra)")
+def test_find_similar_tcrs_skips_null_v_under_tcrdist(null_idx):
+    # Under the authoritative tcrdist engine a candidate with a null V gene has no
+    # germline loops, so it cannot be scored. It is skipped (not crashed on) and the
+    # skip is surfaced honestly, rather than silently mis-scored on CDR3 alone.
     neigh, engine, total, warnings = S.find_similar_tcrs(
         "CASSLGTEAFF", "TRBV19", "TRBJ2-7", species="human", index_path=null_idx
     )
+    assert engine == "tcrdist"
     assert total > 0
-    assert neigh  # did not raise, returned candidates
+    assert neigh  # resolvable candidates returned, no crash
+    assert not any(n.cdr3_b_aa == "CASSLGTEAFF" for n in neigh)  # the null-V row
+    assert any(w.code == "tcrdist_candidates_skipped" for w in warnings)
+
+
+def test_find_similar_tcrs_tolerates_null_genes_blosum(null_idx, monkeypatch):
+    # The BLOSUM CDR3 fallback scores on CDR3 alone, so it tolerates null V/J genes
+    # and must build the Neighbour without crashing on the None values.
+    monkeypatch.setattr("tcr_explorer.tcrdist_engine.tcrdist_available", lambda: False)
+    neigh, engine, total, warnings = S.find_similar_tcrs(
+        "CASSLGTEAFF", "TRBV19", "TRBJ2-7", species="human", index_path=null_idx
+    )
+    assert engine == "blosum_cdr3"
+    assert total > 0
     null_gene_hits = [n for n in neigh if n.cdr3_b_aa == "CASSLGTEAFF"]
     assert null_gene_hits
     assert null_gene_hits[0].v_b_gene is None

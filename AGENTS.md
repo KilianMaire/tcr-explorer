@@ -38,7 +38,8 @@ All are read only and run in one process against the local index.
 | `retrieve_tcr_records` | Look up known receptors by CDR3, gene, epitope, or record id in the harmonized index |
 | `assign_tcr_alleles` | Assign a nucleotide or amino acid sequence (CDR3, region, or full chain) to V and J alleles, with per region identity and co optimal ties |
 | `get_tcr_dossier` | Build a full per receptor dossier (assignment, records, neighbours, context) in one call |
-| `find_similar_tcrs` | Find receptors near a query CDR3 by BLOSUM CDR3 distance, filtered by V family and species |
+| `find_similar_tcrs` | Find receptors near a single chain query (alpha or beta) by tcrdist when the tcrdist extra is installed, otherwise BLOSUM CDR3 distance, filtered by V family and species |
+| `find_similar_paired_tcrs` | Find alpha/beta paired receptors near a paired query by paired tcrdist (alpha plus beta). Needs the tcrdist extra and both query V genes in the reference table |
 | `align_tcr_genes` | Align a sequence against germline genes |
 | `ask_tcr` | Route a single free text or sequence input to the right tool when you are unsure which to call |
 
@@ -55,7 +56,7 @@ When you do not know which tool fits, pass the raw user input to `ask_tcr`. It r
 
 - The tool refuses to call a V allele from a bare CDR3, because the CDR3 alone does not determine the V gene. If the user wants a V call, ask for the full chain or region. Do not invent one.
 - Similarity scores are within query relative: only `similarity == 1.0` (identical) is absolute. For cross query comparisons, threshold on the raw `distance` field, not on similarity.
-- The similarity engine is the bundled BLOSUM CDR3 distance, reported as `blosum_cdr3`. The tcrdist3 authoritative engine is not wired yet, and the tool says so in a `tcrdist_unavailable` warning. Do not present BLOSUM distance as tcrdist.
+- The similarity result reports which engine scored it in the `engine` field. When `engine` is `tcrdist`, the distances are the authoritative tcrdist metric (installed via the optional `tcrdist` extra) and are absolute, so cross query comparisons are valid on the `distance` field. When `engine` is `blosum_cdr3`, the tool used the bundled BLOSUM CDR3 distance and says so in a `tcrdist_unavailable` warning (suggest `pip install tcr-explorer[tcrdist]` for authoritative scoring). Never present a BLOSUM distance as tcrdist. If a `tcrdist_candidates_skipped` warning appears, some reference candidates had a V gene absent from the tcrdist table and were skipped (their germline loops are unknown), so they are not in the results.
 - The records index does not contain MHC allele sequences. Those come from the optional hla and mhc proxies, reached only when the user starts them (`docker-compose up`). Do not claim MHC sequence data from the records index.
 - Report what the data says, including empty results. If there are no records for a CDR3, say so. Do not fill the gap with a guess.
 

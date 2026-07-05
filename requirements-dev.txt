@@ -11,5 +11,9 @@ pytest-cov>=4.1.0
 # --- Smoke / integration tests ---
 requests>=2.31.0
 
+# --- tcrdist similarity engine ---
+pwseqdist>=0.6                   # runtime engine for the [tcrdist] extra (dev: always on)
+tcrdist3>=0.3.0                  # dev only: parity gate for the offline tcrdist engine
+
 # --- Data pipeline (optional) ---
 # playwright>=1.40.0              # Only needed for data/tcrdb/ scraping scripts
