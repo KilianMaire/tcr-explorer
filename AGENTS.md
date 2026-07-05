@@ -1,6 +1,6 @@
 # Working with TCR Explorer (instructions for AI assistants)
 
-This file tells an AI coding or research assistant (Claude, Codex, Cursor, and similar) how to drive TCR Explorer to answer a user's T cell receptor questions against real immunology data. Read it before you touch the tool.
+This file tells an AI coding or research assistant (Codex, Cursor, Cline, and similar MCP-capable tools) how to drive TCR Explorer to answer a user's T cell receptor questions against real immunology data. Read it before you touch the tool.
 
 TCR Explorer retrieves known TCR records (VDJdb, IEDB, McPAS, TCR3d), assigns germline V and J genes to the allele level, reconstructs full membrane bound chains, builds per receptor dossiers, and finds similar receptors. The same pure functions back a REST API, a web query box, and an MCP server, so you can drive everything through one interface.
 
@@ -19,7 +19,7 @@ If a tool returns a `records_index_stale` warning, the local index is older than
 
 ## Connect over MCP (recommended)
 
-For Claude Desktop and Claude Code, add an MCP server that runs the console entry point:
+For a desktop or CLI MCP client, add an MCP server that runs the console entry point:
 
 ```json
 {"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
@@ -27,7 +27,7 @@ For Claude Desktop and Claude Code, add an MCP server that runs the console entr
 
 If `uvx` is unavailable, run `python -m tcr_explorer.mcp_server`. You can also run it straight from the public repo: `uvx --from git+https://github.com/KilianMaire/tcr-explorer tcr-explorer-mcp`.
 
-ChatGPT does not run local stdio MCP servers the same way. For a paste and go flow, use Claude, or call the REST API directly (see below).
+Some web only assistants do not run local stdio MCP servers the same way. For a paste and go flow, use a desktop or CLI MCP client, or call the REST API directly (see below).
 
 ## The tools you have
 

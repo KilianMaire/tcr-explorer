@@ -923,7 +923,7 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 </div>
 <div class="card onboard" id="onboard">
 <h3>Ask in plain English, use your own AI assistant</h3>
-<p class="muted">TCR Explorer also runs as an MCP server, so your own AI assistant (Claude Code, Claude Desktop, or any MCP compatible client) can call these tools directly while you keep chatting in plain English. Paste either artifact below into your assistant.</p>
+<p class="muted">TCR Explorer also runs as an MCP server, so your own AI assistant (any MCP compatible client) can call these tools directly while you keep chatting in plain English. Paste either artifact below into your assistant.</p>
 <h4>MCP server config</h4>
 <pre id="mcpConfigOut"></pre>
 <button type="button" class="copy-btn" id="copyConfigBtn">Copy config</button>

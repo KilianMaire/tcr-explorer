@@ -21,3 +21,7 @@ CLAUDE.md
 .claude/
 .cursor/
 .aider*
+
+# Agentic workflow scratch, never track
+docs/superpowers/
+.superpowers/

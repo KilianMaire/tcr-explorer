@@ -6,7 +6,7 @@
 .git
 .gitignore
 
-# Claude / IDE
+# Editor / IDE
 .claude/
 .vscode/
 .idea/

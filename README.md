@@ -43,7 +43,7 @@ Two front doors, both a single process.
 
 ### As an MCP server (recommended)
 
-Point your own assistant at TCR Explorer over MCP and ask questions in plain language. This targets Claude Desktop and Claude Code, which run a local stdio MCP server. ChatGPT does not run local stdio MCP servers the same way, so use Claude for the paste and go flow. See [Connect your assistant](#connect-your-assistant).
+Point your own assistant at TCR Explorer over MCP and ask questions in plain language. This targets desktop and CLI assistants that run a local stdio MCP server. Some web only assistants do not run local stdio MCP servers the same way, so use a desktop or CLI MCP client for the paste and go flow. See [Connect your assistant](#connect-your-assistant).
 
 ### As a web app and REST API
 
@@ -65,7 +65,7 @@ TCR Explorer ships an MCP server (console entry point `tcr-explorer-mcp`). Add t
 {"mcpServers":{"tcr-explorer":{"command":"uvx","args":["--from","tcr-explorer","tcr-explorer-mcp"]}}}
 ```
 
-Or paste this prompt into Claude to have it set the connection up for you:
+Or paste this prompt into your assistant to have it set the connection up for you:
 
 ```
 Set up the TCR Explorer MCP server so you can answer T cell receptor questions against real immunology databases. First install it (pip install tcr-explorer, or use uvx --from tcr-explorer), then run tcr-explorer-refresh once in a terminal to download the datasets into a local folder (a few minutes). Then add an MCP server named tcr-explorer that runs `uvx --from tcr-explorer tcr-explorer-mcp` (if uvx is unavailable, run python -m tcr_explorer.mcp_server). It exposes these read only tools: retrieve_tcr_records, assign_tcr_alleles, get_tcr_dossier, find_similar_tcrs, align_tcr_genes, and ask_tcr. If a tool reports the data is not downloaded yet, tell me to run tcr-explorer-refresh. After adding it, confirm the connection and suggest three example questions I can ask.
