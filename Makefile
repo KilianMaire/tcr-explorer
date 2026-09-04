@@ -19,15 +19,10 @@ install-dev: ## Install dev + production dependencies
 # ──────────────────────────── Testing ──────────────────────────
 
 test: ## Run test suite
-	PYTHONPATH=src:. python -m pytest tests/ \
-		--ignore=tests/test_cdr_enricher.py \
-		--ignore=tests/test_nl_query.py \
-		-v --tb=short
+	PYTHONPATH=src:. python -m pytest tests/ -v --tb=short
 
 test-cov: ## Run tests with coverage report
 	PYTHONPATH=src:. python -m pytest tests/ \
-		--ignore=tests/test_cdr_enricher.py \
-		--ignore=tests/test_nl_query.py \
 		--cov=src/ --cov=servers/ --cov-report=html --cov-report=term-missing
 
 # ──────────────────────────── Code quality ─────────────────────
