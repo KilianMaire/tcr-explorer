@@ -1,7 +1,8 @@
 import pytest
+
+from tcr_explorer.cdr_enricher import _stitchr_data_dir
 from tcr_explorer.dossier_models import AlignRequest
 from tcr_explorer.msa import align
-from tcr_explorer.cdr_enricher import _stitchr_data_dir
 
 
 def test_provided_nt_codon_aware_registers_aa_over_codons():

@@ -1,4 +1,5 @@
 import pytest
+
 from tcr_explorer.cdr_enricher import _stitchr_data_dir
 from tcr_explorer.dossier_models import AlignRequest
 from tcr_explorer.germline_sets import load_segment_map, resolve_sequences

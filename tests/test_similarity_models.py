@@ -1,4 +1,5 @@
-from tcr_explorer.dossier_models import Neighbour, SimilarRequest, DossierWarning
+from tcr_explorer.dossier_models import DossierWarning, Neighbour, SimilarRequest
+
 
 def test_neighbour_minimal():
     n = Neighbour(cdr3_b_aa="CASSLGTEAFF", v_b_gene="TRBV20-1", j_b_gene="TRBJ1-1",

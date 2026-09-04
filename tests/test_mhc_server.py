@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -13,12 +13,13 @@ _src = Path(__file__).resolve().parent.parent / "src"
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from fastapi.testclient import TestClient
+# Imports below must follow the sys.path insertion above.
+from fastapi.testclient import TestClient  # noqa: E402
 
-from servers.mhc_server import (
-    _detect_project,
-    _build_query_prefix,
+from servers.mhc_server import (  # noqa: E402
     _allele_to_record,
+    _build_query_prefix,
+    _detect_project,
     app,
 )
 
@@ -264,7 +265,7 @@ def _ok_response(json_data):
 class TestFetchEbi:
     def test_fetch_ebi_success(self):
         """Mock the full EBI API flow: list -> parallel individual fetches."""
-        from servers.mhc_server import _fetch_ebi, _CACHE
+        from servers.mhc_server import _CACHE, _fetch_ebi
         _CACHE.clear()
 
         list_resp = _ok_response({
@@ -296,7 +297,7 @@ class TestFetchEbi:
 
     def test_fetch_ebi_empty_list(self):
         """When EBI returns no alleles, result is empty."""
-        from servers.mhc_server import _fetch_ebi, _CACHE
+        from servers.mhc_server import _CACHE, _fetch_ebi
         _CACHE.clear()
 
         list_resp = _ok_response({"data": [], "meta": {"total": 0}})
@@ -308,7 +309,7 @@ class TestFetchEbi:
 
     def test_fetch_ebi_network_error(self):
         """Network errors return empty list, don't raise."""
-        from servers.mhc_server import _fetch_ebi, _CACHE
+        from servers.mhc_server import _CACHE, _fetch_ebi
         _CACHE.clear()
 
         mc = AsyncMock()
@@ -323,7 +324,7 @@ class TestFetchEbi:
 
     def test_fetch_ebi_seq_contains_filter(self):
         """sequence_contains filters results post-fetch."""
-        from servers.mhc_server import _fetch_ebi, _CACHE
+        from servers.mhc_server import _CACHE, _fetch_ebi
         _CACHE.clear()
 
         list_resp = _ok_response({
@@ -360,7 +361,7 @@ class TestFetchEbi:
 class TestCache:
     def test_cache_hit_avoids_second_request(self):
         """Second call with same params should use cache, not hit API."""
-        from servers.mhc_server import _fetch_ebi, _CACHE
+        from servers.mhc_server import _CACHE, _fetch_ebi
         _CACHE.clear()
 
         list_resp = _ok_response({

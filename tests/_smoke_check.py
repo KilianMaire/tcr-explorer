@@ -1,5 +1,7 @@
 """Quick smoke check for parse_vdjdb_tsv — run with: python3 tests/_smoke_check.py"""
-import sys, pathlib
+import pathlib
+import sys
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 from tcr_explorer.file_ingest import parse_vdjdb_tsv

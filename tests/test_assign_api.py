@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+
 from tcr_explorer.api import app
 
 client = TestClient(app)
@@ -32,8 +33,8 @@ def test_assign_tcr_alleles_mcp_tool_registered():
 
 
 def test_assign_tcr_alleles_mcp_tool_full_chain():
-    from tcr_explorer.reconstructor import reconstruct_tcr
     from tcr_explorer import mcp_server
+    from tcr_explorer.reconstructor import reconstruct_tcr
     chain_aa = reconstruct_tcr("TRBV19", "TRBJ1-4", "CASSMADRKFF", "mouse")["full_chain_aa"]
     out = mcp_server.assign_tcr_alleles(chain_aa, species="mouse")
     assert any(n.startswith("TRBV19") for n in out["v_call"]["alleles"])

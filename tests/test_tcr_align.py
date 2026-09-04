@@ -1,6 +1,5 @@
-import pytest
 from tcr_explorer.germline_db import germline_alleles
-from tcr_explorer.tcr_align import detect_alphabet, best_alleles, detect_chain
+from tcr_explorer.tcr_align import best_alleles, detect_alphabet, detect_chain
 
 
 def test_detect_alphabet():

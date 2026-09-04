@@ -1,5 +1,5 @@
-from tcr_explorer.dossier_models import DossierRequest
 from tcr_explorer.dossier import build_dossier
+from tcr_explorer.dossier_models import DossierRequest
 
 
 def test_neighbours_populated_and_separated(monkeypatch):

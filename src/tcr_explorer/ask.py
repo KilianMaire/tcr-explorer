@@ -9,10 +9,10 @@ output falls back to the heuristic rather than silently claiming "llm".
 """
 from __future__ import annotations
 
-from .dossier_models import AskRequest, AskResponse, DossierRequest
-from .llm_client import llm_available, llm_json
-from .input_router import route
 from .dossier import build_dossier, find_similar_tcrs
+from .dossier_models import AskRequest, AskResponse, DossierRequest
+from .input_router import route
+from .llm_client import llm_available, llm_json
 from .models import SearchRequest
 from .nl_query import heuristic_parse
 

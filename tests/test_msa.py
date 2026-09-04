@@ -1,9 +1,9 @@
 import pytest
 
 from tcr_explorer import msa
-from tcr_explorer.msa import align, center_star_align, to_fasta
-from tcr_explorer.dossier_models import AlignRequest
 from tcr_explorer.cdr_enricher import _stitchr_data_dir
+from tcr_explorer.dossier_models import AlignRequest
+from tcr_explorer.msa import align, center_star_align, to_fasta
 
 
 def test_identical_sequences_no_gaps_full_identity():

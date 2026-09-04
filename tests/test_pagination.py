@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from tcr_explorer.models import GeneRecord, SearchRequest, SearchResponse
 
-
 # ---------------------------------------------------------------------------
 # Helper — build a GeneRecord with minimal required fields
 # ---------------------------------------------------------------------------

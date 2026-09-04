@@ -1,6 +1,9 @@
 from tcr_explorer.dossier_models import (
-    DossierRequest, TCRDossier, GeneCall, DossierWarning, WarningCode,
+    DossierRequest,
+    DossierWarning,
+    TCRDossier,
 )
+
 
 def test_request_defaults():
     r = DossierRequest(query="TRBV20-1")
@@ -22,6 +25,7 @@ def test_dossier_minimal_valid():
     assert d.warnings[0].code == "partial_annotation"
 
 def test_warning_code_is_constrained():
-    import pydantic, pytest
+    import pydantic
+    import pytest
     with pytest.raises(pydantic.ValidationError):
         DossierWarning(code="not_a_real_code", message="m")

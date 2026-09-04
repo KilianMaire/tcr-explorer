@@ -1,20 +1,20 @@
 """Tests for cdr_enricher.py."""
 from __future__ import annotations
 
-import sys
 import pathlib
+import sys
 from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 from tcr_explorer.cdr_enricher import (
-    _translate,
-    _gene_to_chain,
-    get_cdr1_cdr2,
-    _CDR1_START,
     _CDR1_END,
-    _CDR2_START,
+    _CDR1_START,
     _CDR2_END,
+    _CDR2_START,
+    _gene_to_chain,
+    _translate,
+    get_cdr1_cdr2,
 )
 
 
@@ -139,7 +139,7 @@ class TestGetCdr1Cdr2MissingData:
         # Patch _stitchr_data_dir to return None (simulates stitchr not installed)
         with patch("tcr_explorer.cdr_enricher._stitchr_data_dir", return_value=None):
             # Clear caches so mock takes effect
-            from tcr_explorer.cdr_enricher import _cached_v_map, _cached_v_allele_map
+            from tcr_explorer.cdr_enricher import _cached_v_allele_map, _cached_v_map
             _cached_v_map.cache_clear()
             _cached_v_allele_map.cache_clear()
             result = get_cdr1_cdr2("TRBV19", "human")

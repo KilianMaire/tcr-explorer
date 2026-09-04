@@ -8,7 +8,6 @@ import httpx
 from .config import settings
 from .models import ParseQueryResult
 
-
 PROMPT = """
 Convert user query into JSON with keys:
 source (hla|tcr|vdjdb|iedb|mhc|null), species (human|mouse|other|null), gene_name, region,

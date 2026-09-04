@@ -6,10 +6,12 @@ germline V/J FASTA using shared-k-mer scoring. This is the always-available
 fallback used when IgBLAST is absent.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
-from .cdr_enricher import _cached_v_map, _SPECIES_STITCHR, _translate
+
+from .cdr_enricher import _SPECIES_STITCHR, _cached_v_map, _translate
 from .reconstructor import _cached_j_map
 
 _K = 7

@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, Field
+
 from .models import IEDBHit
 
 InputType = Literal["auto", "raw_nt", "raw_aa", "gene_name", "allele", "id"]

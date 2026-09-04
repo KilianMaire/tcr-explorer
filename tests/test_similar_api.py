@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from tcr_explorer.api import app
 from tcr_explorer import tcrdist_engine
+from tcr_explorer.api import app
 
 client = TestClient(app)
 
@@ -27,6 +27,7 @@ def test_similar_endpoint_uses_tiny_index(monkeypatch):
                     reason="pwseqdist not installed (tcrdist extra)")
 def test_similar_paired_endpoint(monkeypatch, tmp_path):
     import pandas as pd
+
     import tcr_explorer.similarity as similarity
 
     rows = []

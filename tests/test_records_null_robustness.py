@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 
 from tcr_explorer import records as R
 from tcr_explorer import similarity as S
-from tcr_explorer.records_build import SCHEMA_COLUMNS
 from tcr_explorer.dossier_models import RecordsRequest
+from tcr_explorer.records_build import SCHEMA_COLUMNS
 
 
 @pytest.fixture

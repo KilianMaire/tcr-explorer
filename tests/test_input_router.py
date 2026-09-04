@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from tcr_explorer.input_router import route
 
+
 def test_override_wins():
     r = route("ACGTACGT", input_type="raw_aa")
     assert r.detected_type == "raw_aa"

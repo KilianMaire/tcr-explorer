@@ -4,7 +4,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-
 GeneSource = Literal["hla", "tcr", "vdjdb", "iedb", "mhc"]
 Species = Literal["human", "mouse", "other"]
 

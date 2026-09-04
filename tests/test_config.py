@@ -1,6 +1,9 @@
 """Tests for Settings configuration."""
 from __future__ import annotations
-import sys, pathlib
+
+import pathlib
+import sys
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 
 from tcr_explorer.config import Settings
@@ -17,7 +20,9 @@ class TestServerSettings:
 
     def test_hla_server_url_from_env(self, monkeypatch):
         monkeypatch.setenv("HLA_SERVER_URL", "http://hla:8101")
-        import importlib, tcr_explorer.config as cfg
+        import importlib
+
+        import tcr_explorer.config as cfg
         importlib.reload(cfg)
         s = cfg.Settings()
         assert s.hla_server_url == "http://hla:8101"

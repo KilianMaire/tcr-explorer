@@ -5,17 +5,26 @@ there is no logic divergence between REST and MCP. Run with:
     python -m tcr_explorer.mcp_server
 """
 from __future__ import annotations
+
 import dataclasses
 from typing import Optional
+
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .dossier_models import DossierRequest, AskRequest, RecordsRequest, SimilarResponse, PairedSimilarResponse
-from .dossier_models import AlignRequest as _AlignRequest
-from .dossier import build_dossier, find_similar_tcrs as find_similar_tcrs_fn
-from .similarity import find_similar_paired_tcrs as find_similar_paired_tcrs_fn
 from .ask import answer as answer_fn
+from .dossier import build_dossier
+from .dossier import find_similar_tcrs as find_similar_tcrs_fn
+from .dossier_models import AlignRequest as _AlignRequest
+from .dossier_models import (
+    AskRequest,
+    DossierRequest,
+    PairedSimilarResponse,
+    RecordsRequest,
+    SimilarResponse,
+)
 from .records import retrieve_records as retrieve_records_fn
+from .similarity import find_similar_paired_tcrs as find_similar_paired_tcrs_fn
 from .tcr_align import assign as assign_fn
 
 mcp = FastMCP("tcr-explorer")

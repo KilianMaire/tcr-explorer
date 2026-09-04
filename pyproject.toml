@@ -83,3 +83,14 @@ pythonpath = ["src", "."]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit rule set so lint results do not drift with the ruff version.
+# Deliberately limited to correctness and import hygiene: pycodestyle (E, W),
+# pyflakes (F), and import sorting (I). Rewriting families (UP, B, C4, RUF,
+# BLE) are left out; they only produce cosmetic churn on this codebase.
+select = ["E", "F", "W", "I"]
+# Line length is a formatting target, not a lint failure: several hundred
+# existing lines (mostly docstrings and pydantic Field descriptions) exceed it
+# and rewrapping them by hand would be pure noise.
+ignore = ["E501"]

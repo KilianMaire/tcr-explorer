@@ -28,13 +28,14 @@ import re
 from functools import lru_cache
 from typing import Optional
 
-from .constant_regions import constant_aa, constant_source as _constant_provenance
 from .cdr_enricher import (
     _SPECIES_STITCHR,
     _gene_to_chain,
     _stitchr_data_dir,
     _translate,
 )
+from .constant_regions import constant_aa
+from .constant_regions import constant_source as _constant_provenance
 
 # ---------------------------------------------------------------------------
 # Human-optimised codon table (most frequent codon per amino acid)

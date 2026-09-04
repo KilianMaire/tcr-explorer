@@ -1,5 +1,6 @@
 from tcr_explorer import mcp_server
 
+
 def test_get_tcr_dossier_tool_returns_dossier_dict():
     out = mcp_server.get_tcr_dossier("TRBV20-1", species="human")
     assert out["schema_version"] == "1.0"

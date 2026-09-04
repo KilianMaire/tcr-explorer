@@ -9,7 +9,7 @@ warning -- this is a deliberate honesty behaviour, not a bug.
 """
 from __future__ import annotations
 
-from .cdr_enricher import _stitchr_data_dir, _translate, _SPECIES_STITCHR
+from .cdr_enricher import _SPECIES_STITCHR, _stitchr_data_dir, _translate
 from .dossier_models import AlignRequest, DossierWarning
 
 _SEG_TOKEN = {"V": "~VARIABLE", "J": "~JOINING", "C": "~CONSTANT"}  # D absent from stitchr

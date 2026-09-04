@@ -1,5 +1,5 @@
-from tcr_explorer.dossier_models import AskRequest
 from tcr_explorer import ask
+from tcr_explorer.dossier_models import AskRequest
 
 
 def test_llm_malformed_dossier_params_fall_back_to_heuristic(monkeypatch):

@@ -16,25 +16,25 @@ from __future__ import annotations
 from hashlib import sha256
 from typing import Callable, Optional
 
+from .annotator import annotate
+from .cdr_enricher import _gene_to_chain, _translate, get_cdr1_cdr2, resolve_v_germline
+from .dossier_epitopes import lookup_known_epitopes, resolve_id
 from .dossier_models import (
     DossierRequest,
     DossierWarning,
     GeneCall,
     Junction,
     Provenance,
+    RecordsRequest,
     RegionSeq,
     TCRDossier,
+    TCRRecord,
 )
 from .input_router import route
-from .annotator import annotate
-from .cdr_enricher import get_cdr1_cdr2, resolve_v_germline, _gene_to_chain, _translate
-from .reconstructor import reconstruct_tcr
 from .models import IEDBHit
-from .dossier_epitopes import lookup_known_epitopes, resolve_id
-from .similarity import find_similar_tcrs
-from .dossier_models import RecordsRequest, TCRRecord
+from .reconstructor import reconstruct_tcr
 from .records import retrieve_records
-
+from .similarity import find_similar_tcrs
 
 # Map cdr_enricher's chain codes (TRA/TRB/TRG/TRD) to dossier chain names.
 _CHAIN_NAME: dict[str, str] = {

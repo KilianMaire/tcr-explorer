@@ -1,8 +1,8 @@
 """Tests for Pydantic model validation in models.py."""
 from __future__ import annotations
 
-import sys
 import pathlib
+import sys
 
 import pytest
 
@@ -11,14 +11,14 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 from pydantic import ValidationError
 
 from tcr_explorer.models import (
+    CDRPredictResponse,
     GeneRecord,
-    IEDBHit,        # ← add this
-    SearchRequest,
-    SearchResponse,
+    IEDBHit,  # ← add this
+    IngestResponse,
     NLQueryRequest,
     ParseQueryResult,
-    IngestResponse,
-    CDRPredictResponse,
+    SearchRequest,
+    SearchResponse,
 )
 
 

@@ -160,6 +160,7 @@ def test_load_records_index_does_not_cache_absent(monkeypatch, tmp_path):
     p = str(tmp_path / "records_index.parquet")
     assert R.load_records_index(p) is None
     import pandas as pd
+
     from tcr_explorer.records_build import SCHEMA_COLUMNS
     pd.DataFrame({c: ["x"] for c in SCHEMA_COLUMNS}).to_parquet(p, index=False)
     # after the file appears, the same call must see it (absent result was not cached)

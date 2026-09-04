@@ -3,7 +3,8 @@ from __future__ import annotations
 import dataclasses
 import logging
 import os
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -18,20 +19,28 @@ from .dossier_models import (
     AskResponse,
     DossierRequest,
     MSAResult,
+    PairedSimilarRequest,
+    PairedSimilarResponse,
     RecordsRequest,
     RecordsResponse,
     SimilarRequest,
     SimilarResponse,
-    PairedSimilarRequest,
-    PairedSimilarResponse,
     TCRDossier,
 )
 from .mcp_clients import ToolServerClient
 from .models import (
-    AssignRequest, AssignResponse,
-    CDRPredictResponse, QueryRequest, QueryResponse, QueryUnderstanding, QueryBlock,
-    ReconstructRequest, ReconstructResponse,
-    SearchRequest, SearchResponse, Species,
+    AssignRequest,
+    AssignResponse,
+    CDRPredictResponse,
+    QueryBlock,
+    QueryRequest,
+    QueryResponse,
+    QueryUnderstanding,
+    ReconstructRequest,
+    ReconstructResponse,
+    SearchRequest,
+    SearchResponse,
+    Species,
 )
 from .reconstructor import reconstruct_tcr
 
@@ -60,6 +69,7 @@ _RATE_LIMIT_PER_MIN = int(os.getenv("TCR_EXPLORER_RATE_LIMIT_PER_MIN") or 0)
 if _RATE_LIMIT_PER_MIN > 0:
     import time as _time
     from collections import deque
+
     from fastapi.responses import JSONResponse
 
     _rl_hits: dict[str, deque] = {}
@@ -130,7 +140,7 @@ def reconstruct(req: ReconstructRequest) -> ReconstructResponse:
     back-translated with human-optimised codons. Assembly follows IMGT/VDJdb
     CDR3 boundaries: Cys104 … Phe/Trp118 (inclusive).
     """
-    from .records import infer_vj_from_cdr3, _gene_base  # local: avoids import cycle
+    from .records import _gene_base, infer_vj_from_cdr3  # local: avoids import cycle
 
     v_gene = (req.v_gene or "").strip() or None
     j_gene = (req.j_gene or "").strip() or None
@@ -694,7 +704,9 @@ def _enable_remote_mcp_if_configured() -> None:
     if not os.getenv("TCR_EXPLORER_MCP_HTTP"):
         return
     from contextlib import asynccontextmanager
+
     from mcp.server.transport_security import TransportSecuritySettings
+
     from .mcp_server import mcp as _mcp
 
     # Serve the handler at the mount root so the public path is exactly /mcp.

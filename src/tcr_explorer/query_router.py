@@ -4,13 +4,13 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .ask import answer
+from .dossier import build_dossier, find_similar_tcrs
+from .dossier_models import AskRequest, DossierRequest, RecordsRequest, SimilarResponse
 from .input_router import route as classify
-from .query_nl import parse_query, _is_cdr3_token
+from .query_nl import _is_cdr3_token, parse_query
 from .records import retrieve_records
 from .tcr_align import assign
-from .dossier import build_dossier, find_similar_tcrs
-from .ask import answer
-from .dossier_models import RecordsRequest, DossierRequest, AskRequest, SimilarResponse
 
 
 @dataclass

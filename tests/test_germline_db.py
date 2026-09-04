@@ -1,5 +1,5 @@
-from tcr_explorer.germline_db import germline_alleles, Allele
 from tcr_explorer import d_regions
+from tcr_explorer.germline_db import Allele, germline_alleles
 
 
 def test_v_catalog_has_alleles_with_nt_and_aa():

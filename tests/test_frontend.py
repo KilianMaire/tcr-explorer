@@ -39,7 +39,6 @@ _stub_streamlit()
 
 from tcr_explorer.frontend import _records_to_df  # noqa: E402  (must come after stub)
 
-
 # ---------------------------------------------------------------------------
 # Test data
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
-from tcr_explorer.dossier_models import DossierRequest
-from tcr_explorer.dossier import build_dossier
-from tcr_explorer.models import IEDBHit
 import tcr_explorer.dossier_epitopes as dossier_epitopes
+from tcr_explorer.dossier import build_dossier
+from tcr_explorer.dossier_models import DossierRequest
+from tcr_explorer.models import IEDBHit
 
 
 def test_epitopes_flow_into_dossier():

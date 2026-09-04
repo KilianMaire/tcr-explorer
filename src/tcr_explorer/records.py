@@ -24,12 +24,12 @@ import pandas as pd
 from . import input_router
 from .cdr_enricher import _gene_to_chain, _translate
 from .dossier_models import (
+    Composition,
     DossierWarning,
     PairedRecord,
     RecordsRequest,
     RecordsResponse,
     TCRRecord,
-    Composition,
 )
 from .query_nl import parse_query
 from .reconstructor import reconstruct_tcr

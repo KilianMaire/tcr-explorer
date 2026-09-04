@@ -1,4 +1,5 @@
 import pytest
+
 from tcr_explorer.cdr_enricher import _stitchr_data_dir
 from tcr_explorer.kmer_aligner import annotate_sequence
 

@@ -1,8 +1,8 @@
 import pandas as pd
 import pytest
 
-from tcr_explorer import similarity, tcrdist_engine
-from tcr_explorer.similarity import find_similar_tcrs, cdr3_distance
+from tcr_explorer import tcrdist_engine
+from tcr_explorer.similarity import cdr3_distance, find_similar_tcrs
 
 FIX = "tests/fixtures/unitcr_tiny.parquet"
 

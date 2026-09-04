@@ -1,8 +1,8 @@
 """Tests for heuristic_parse in nl_query.py."""
 from __future__ import annotations
 
-import sys
 import pathlib
+import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "src"))
 

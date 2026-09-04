@@ -1,8 +1,9 @@
 import json
+from pathlib import Path
 
 import pandas as pd
 import pytest
-from pathlib import Path
+
 from scripts.build_unitcr_index import build_index
 
 _META = Path("data/unitcr_beta_index.meta.json")
@@ -33,8 +34,10 @@ def _make_tiny(path):
     pd.DataFrame(rows).to_parquet(path)
 
 def test_build_drops_negatives_and_incomplete(tmp_path):
-    raw = tmp_path / "raw.parquet"; _make_tiny(raw)
-    out = tmp_path / "idx.parquet"; meta = tmp_path / "idx.meta.json"
+    raw = tmp_path / "raw.parquet"
+    _make_tiny(raw)
+    out = tmp_path / "idx.parquet"
+    meta = tmp_path / "idx.meta.json"
     m = build_index(str(raw), str(out), str(meta))
     df = pd.read_parquet(out)
     assert len(df) == 1

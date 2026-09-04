@@ -10,10 +10,12 @@ the point of this module is the selection/fallback logic and the
 `igblast_unavailable` warning, not the IgBLAST call itself.
 """
 from __future__ import annotations
+
 import shutil
 from dataclasses import dataclass, field
 from typing import Optional
-from .kmer_aligner import annotate_sequence, KmerAnnotation
+
+from .kmer_aligner import KmerAnnotation, annotate_sequence
 
 
 @dataclass

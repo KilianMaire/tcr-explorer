@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+
 from tcr_explorer.api import app
+
 client = TestClient(app)
 
 def test_align_endpoint_provided_sequences():
