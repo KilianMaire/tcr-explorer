@@ -1,5 +1,5 @@
 # =============================================================================
-# TCRpredictor — Multi-stage Dockerfile
+# tcr-explorer — Multi-stage Dockerfile
 # =============================================================================
 # Stage 1 (base):  System deps + production Python packages
 # Stage 2 (dev):   Add dev/test dependencies on top of base
@@ -35,9 +35,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
-COPY requirements-dev.txt requirements-ml.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt \
-    && pip install --no-cache-dir -r requirements-ml.txt
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
 
 # Copy entire project for development/testing
 COPY . .
@@ -75,10 +74,6 @@ COPY --from=base /usr/local/bin /usr/local/bin
 # Copy application source code (only what is needed at runtime)
 COPY src/ ./src/
 COPY servers/ ./servers/
-COPY pipeline/ ./pipeline/
-COPY models/ ./models/
-COPY structural/ ./structural/
-COPY mlops/ ./mlops/
 COPY examples/ ./examples/
 COPY requirements.txt ./
 
