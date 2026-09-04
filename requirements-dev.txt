@@ -1,5 +1,5 @@
 # =============================================================================
-# TCRpredictor – development & testing dependencies
+# tcr-explorer – development & testing dependencies
 # =============================================================================
 -r requirements.txt
 
