@@ -117,6 +117,7 @@ _REGIONS_AA = {
     "FR3": (65, 104),
 }
 _V_FRAMEWORK_MIN = 30  # germline residues upstream of Cys104 for a determinable V
+_CDR3_MAX_AA = 30  # longer than any plausible Cys104 to Phe/Trp118 junction
 
 
 @dataclass
@@ -187,6 +188,53 @@ def _region_identity(aln, ref: str, query: str, start: int, end: int):
     return matches / (end - start)
 
 
+def _cdr3_start(win_v: Allele, v_alleles: list[Allele]) -> int | None:
+    """Nucleotide offset in the V allele of the codon that opens the CDR3 (IMGT
+    position 104), or None when it cannot be placed.
+
+    A few alleles have lost the conserved Cys (TRBV7-3*03 carries an Arg), and
+    _v_cys_cut then falls back to the last codon of the V-REGION, several
+    residues too far. Position 104 sits at the same offset in every allele of a
+    gene, so such an allele takes it from one that kept the Cys."""
+    gene = win_v.name.split("*")[0]
+    for al in [win_v] + [a for a in v_alleles if a.name.split("*")[0] == gene]:
+        cut = _v_cys_cut(al.nt)
+        if _translate(al.nt[cut : cut + 3]) == "C":
+            return cut
+    return None
+
+
+def _confident_j(call: AlleleCall | None, min_len: int) -> bool:
+    if call is None:
+        return False
+    start, end = call.aligned_span
+    return call.identity >= 0.90 and end - start >= min_len
+
+
+def _joined_j(seq: str, j_alleles: list[Allele], level: str, v_end: int) -> AlleleCall | None:
+    """J call for the J segment joined to the V, or None when no confident J
+    lies downstream of the V alignment end.
+
+    A transcript can carry a second J besides the recombined one (read-through
+    into a downstream J of the locus, or a J upstream of the V). That J is
+    untrimmed germline, so it outscores the recombined, 5' trimmed J and the
+    best score over the whole input names the wrong gene. The search is
+    therefore limited to the sequence after the V, and a confident J hit lying
+    between the V and the current best hit takes over until none is left."""
+    min_len = 25 if level == "nt" else 8
+    call = best_alleles(seq[v_end:], j_alleles, level)
+    # The first hit after the V may be short: an input can stop inside its J.
+    if not _confident_j(call, 15 if level == "nt" else 5):
+        return None
+    while call.aligned_span[0] >= min_len:
+        nearer = best_alleles(seq[v_end : v_end + call.aligned_span[0]], j_alleles, level)
+        if not _confident_j(nearer, min_len):
+            break
+        call = nearer
+    start, end = call.aligned_span
+    return AlleleCall(call.alleles, call.identity, (start + v_end, end + v_end))
+
+
 def assign(seq: str, species: str | None = None, chain: str | None = None, want_d: bool = False) -> Assignment:
     """Turn a raw TCR sequence into a full allele assignment.
 
@@ -231,28 +279,7 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
     v_alleles = germline_alleles(species, chain, "V")
     j_alleles = germline_alleles(species, chain, "J")
     v_best = best_alleles(seq, v_alleles, level)
-    j_best = best_alleles(seq, j_alleles, level)
     win_v = _winner(v_best, v_alleles)
-    win_j = _winner(j_best, j_alleles)
-
-    # Query reading frame for translation. For an amino acid input the query is
-    # already residues; for a nucleotide input the frame comes from where the V
-    # alignment starts on the query.
-    if level == "aa":
-        query_aa = seq
-    else:
-        frame = 0
-        if win_v:
-            aln_frame = _aligner().align(win_v.nt, seq)[0]
-            target_blocks, query_blocks = aln_frame.aligned
-            tstart = int(target_blocks[0][0])
-            qstart = int(query_blocks[0][0])
-            # The query reading frame is where the V allele's own frame 0 falls
-            # on the query. A mid-V fragment aligns at target start tstart > 0,
-            # so the frame is (qstart - tstart) % 3, not qstart % 3 (the two
-            # agree only when tstart is a multiple of 3).
-            frame = (qstart - tstart) % 3
-        query_aa = _translate(seq[frame:])
 
     # V refusal rule and per region identity share one alignment of the query
     # to the winning V allele at the input's own level.
@@ -280,23 +307,57 @@ def assign(seq: str, species: str | None = None, chain: str | None = None, want_
                 if ident is not None:
                     regions[name] = ident
 
-    # CDR3 extraction. Both anchors are mapped through amino acid alignments so
-    # a nucleotide and an amino acid input share one code path.
+    # J call: the J joined to the V when the input carries a determinable V,
+    # otherwise (bare CDR3, J only input) the best J over the whole input.
+    j_best = None
+    if win_v and v_determinable:
+        j_best = _joined_j(seq, j_alleles, level, int(v_best.aligned_span[1]))
+    if j_best is None:
+        j_best = best_alleles(seq, j_alleles, level)
+    win_j = _winner(j_best, j_alleles)
+
+    # CDR3 extraction. Both anchors are mapped at the input's own level, through
+    # the V alignment and through an alignment of the J allele to its own span,
+    # so a nucleotide input needs no single reading frame for the whole query
+    # (an indel upstream in the V would shift the frame before the junction).
     cdr3_aa: str | None = None
-    if win_v and win_j and query_aa:
-        cys_ref_aa = _v_cys_cut(win_v.nt) // 3
-        aln_v_aa = _aligner().align(win_v.aa, query_aa)[0]
-        cys_q = _map_target_to_query(aln_v_aa, cys_ref_aa)
+    if win_v and win_j:
+        step = 3 if level == "nt" else 1
+        cys_nt = _cdr3_start(win_v, v_alleles)
+        cys_q = None
+        if cys_nt is not None:
+            cys_q = _map_target_to_query(aln_v, cys_nt if level == "nt" else cys_nt // 3)
         frame_j, fw_nt = _j_frame_and_fw(win_j.nt)
         fw_q = None
         if fw_nt >= 0:
-            fw_ref_aa = (fw_nt - frame_j) // 3
-            aln_j_aa = _aligner().align(win_j.aa, query_aa)[0]
-            fw_q = _map_target_to_query(aln_j_aa, fw_ref_aa)
-        if cys_q is not None and fw_q is not None and fw_q >= cys_q:
-            cdr3_aa = query_aa[cys_q : fw_q + 1]
-        else:
+            j_start, j_end = j_best.aligned_span
+            ref_j = win_j.nt if level == "nt" else win_j.aa
+            aln_j = _aligner().align(ref_j, seq[j_start:j_end])[0]
+            fw_q = _map_target_to_query(aln_j, fw_nt if level == "nt" else (fw_nt - frame_j) // 3)
+            if fw_q is not None:
+                fw_q += j_start
+        if cys_q is not None and fw_q is not None and (fw_q - cys_q) % step:
+            # A one base indel inside the J, at or ahead of its anchor (typically
+            # a homopolymer miscall), leaves the junction readable in the V
+            # frame: take the in-frame neighbour codon when it still encodes the
+            # J anchor residue, and say so. A shift that arises in the junction
+            # itself leaves the J alignment ungapped and is not rescued.
+            j_indel = any(ts <= fw_nt for ts, _te in aln_j.aligned[0][1:])
+            near = fw_q + (1 if (fw_q + 1 - cys_q) % step == 0 else -1)
+            anchor = _translate(win_j.nt[fw_nt : fw_nt + 3])
+            if j_indel and _translate(seq[near : near + 3]) == anchor:
+                fw_q = near
+                warnings.append("frameshift in the J at the CDR3 anchor")
+        if cys_q is None or fw_q is None or fw_q < cys_q:
             warnings.append("CDR3 anchor could not be mapped")
+        elif (fw_q - cys_q) % step:
+            warnings.append("V and J are out of frame; no CDR3")
+        else:
+            cdr3_aa = seq[cys_q : fw_q + step]
+            if level == "nt":
+                cdr3_aa = _translate(cdr3_aa)
+            if len(cdr3_aa) > _CDR3_MAX_AA:
+                warnings.append(f"implausible CDR3 length ({len(cdr3_aa)} residues)")
 
     # V call: refused inputs carry no allele call, only a database inference.
     v_db_inference: list | None = None

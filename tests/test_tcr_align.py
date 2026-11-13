@@ -212,3 +212,149 @@ def test_normalize_chain_maps_codes_and_names():
     assert _normalize_chain("TRA") == "TRA"
     assert _normalize_chain("delta") == "TRD"
     assert _normalize_chain("nonsense") is None
+
+
+# --- J joined to the V, and CDR3 anchors, on synthetic rearrangements --------
+# Every sequence below is assembled from the bundled germline plus a made-up
+# junction, so the expected call and CDR3 are known by construction.
+
+def _human(chain, segment, name):
+    return next(a for a in germline_alleles("human", chain, segment) if a.name == name)
+
+
+def _rearranged(v, j, junction_nt, j_trim_codons=1):
+    """V through position 104 plus two codons, a made-up junction, then the J
+    with its first codons trimmed. Returns (nt, offset of the codon at 104)."""
+    from tcr_explorer.reconstructor import _v_cys_cut
+    cut = _v_cys_cut(v.nt)
+    j_frame = (len(j.nt) - 1) % 3  # a J-REGION ends one base into a codon
+    return v.nt[: cut + 9] + junction_nt + j.nt[j_frame + 3 * j_trim_codons:], cut
+
+
+_SPACER = "CTAGGTCACTCTGATTCCAGAGTCTAACATGCTAGGTCACT"  # made-up, not a J
+
+
+def test_j_call_is_the_j_joined_to_the_v_not_a_downstream_j():
+    # A transcript that reads through into a second, untrimmed J: the second J
+    # scores higher than the recombined (5' trimmed) one, but the J that closes
+    # the CDR3 is the one joined to the V.
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRA", "V", "TRAV12-2*01")
+    joined = _human("TRA", "J", "TRAJ31*01")
+    downstream = _human("TRA", "J", "TRAJ30*01")
+    vj, _cut = _rearranged(v, joined, "GGAGCC", j_trim_codons=2)
+    seq = vj + _SPACER + downstream.nt + _human("TRA", "C", "TRAC*01").nt[:90]
+    a = assign(seq, species="human", chain="TRA")
+    assert a.j_call["alleles"] == ["TRAJ31*01"]
+    assert a.j_call["identity"] == 1.0
+    assert a.j_call["aligned_span"][1] <= len(vj)
+    assert a.cdr3_aa == "CAVGANARLMF"
+    assert not any("CDR3" in w for w in a.warnings)
+
+
+def test_j_call_ignores_a_j_upstream_of_the_v():
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV9*01")
+    joined = _human("TRB", "J", "TRBJ1-5*01")
+    upstream = _human("TRB", "J", "TRBJ2-1*01")
+    vj, _cut = _rearranged(v, joined, "GGGACAGGC", j_trim_codons=2)
+    seq = upstream.nt + _SPACER + vj
+    a = assign(seq, species="human", chain="TRB")
+    assert a.j_call["alleles"] == ["TRBJ1-5*01"]
+    assert a.cdr3_aa == "CASGTGQPQHF"
+
+
+def test_j_call_on_an_input_that_stops_inside_the_j():
+    # Only 17 nt of the J are present. The J joined to the V is still called,
+    # and the CDR3 is refused because its closing anchor is not in the input.
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRA", "V", "TRAV12-2*01")
+    j = _human("TRA", "J", "TRAJ10*01")
+    vj, cut = _rearranged(v, j, "GGAGCC", j_trim_codons=0)
+    a = assign(vj[: cut + 15 + 17], species="human", chain="TRA")
+    assert a.j_call["alleles"] == ["TRAJ10*01"]
+    assert a.j_call["identity"] == 1.0
+    assert a.cdr3_aa is None
+    assert "CDR3 anchor could not be mapped" in a.warnings
+
+
+def test_cdr3_closes_on_non_canonical_j_anchors():
+    # TRAJ16 (F-A-R-G), TRAJ35 (Cys instead of Phe/Trp) and TRAJ58 (germline 5'
+    # stop codon ahead of a canonical F-G-E-G) have no F/W-G-x-G motif behind a
+    # stop-free prefix; the J coding frame comes from the J-REGION length.
+    from tcr_explorer.reconstructor import _j_frame_and_fw, _translate
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRA", "V", "TRAV12-2*01")
+    for name, anchor, cdr3 in (
+        ("TRAJ16*01", "F", "CAVGASDGQKLLF"),
+        ("TRAJ35*01", "C", "CAVGAGFGNVLHC"),
+        ("TRAJ58*01", "F", "CAVGAETSGSRLTF"),
+    ):
+        j = _human("TRA", "J", name)
+        frame, fw = _j_frame_and_fw(j.nt)
+        assert frame == (len(j.nt) - 1) % 3, name
+        assert j.aa[(fw - frame) // 3] == anchor, name
+        seq, _cut = _rearranged(v, j, "GGAGCC")
+        a = assign(seq, species="human", chain="TRA")
+        assert a.j_call["alleles"][0] == name
+        assert a.cdr3_aa == cdr3, name
+        # the amino acid level takes the same path
+        assert assign(_translate(seq), species="human", chain="TRA").cdr3_aa == cdr3, name
+
+
+def test_cdr3_survives_a_frameshift_upstream_in_the_v():
+    # One inserted base in FR1 shifts the reading frame of everything upstream
+    # of it. The junction itself is intact, so the CDR3 is still read.
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV9*01")
+    seq, _cut = _rearranged(v, _human("TRB", "J", "TRBJ1-5*01"), "GGGACAGGC", j_trim_codons=2)
+    shifted = seq[:40] + "A" + seq[40:]
+    a = assign(shifted, species="human", chain="TRB")
+    assert a.cdr3_aa == "CASGTGQPQHF"
+
+
+def test_out_of_frame_junction_yields_no_cdr3():
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV9*01")
+    seq, _cut = _rearranged(v, _human("TRB", "J", "TRBJ1-5*01"), "GGGACAGGCA", j_trim_codons=2)
+    a = assign(seq, species="human", chain="TRB")
+    assert a.cdr3_aa is None
+    assert "V and J are out of frame; no CDR3" in a.warnings
+
+
+def test_cdr3_start_for_a_v_allele_without_the_conserved_cys():
+    # TRBV7-3*03 carries an Arg at position 104. The CDR3 starts at that same
+    # position (taken from the alleles of the gene that kept the Cys), not at
+    # the last codon of the V-REGION.
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV7-3*03")
+    j = _human("TRB", "J", "TRBJ1-5*01")
+    j_frame = (len(j.nt) - 1) % 3
+    seq = v.nt[:285] + "GGGACAGGC" + j.nt[j_frame + 6:]
+    a = assign(seq, species="human", chain="TRB")
+    assert a.v_call["alleles"] == ["TRBV7-3*03"]
+    assert a.cdr3_aa == "RASSGTGQPQHF"
+
+
+def test_implausibly_long_cdr3_is_flagged():
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV9*01")
+    seq, _cut = _rearranged(v, _human("TRB", "J", "TRBJ1-5*01"), "GGTACC" * 20, j_trim_codons=2)
+    a = assign(seq, species="human", chain="TRB")
+    assert len(a.cdr3_aa) == 48
+    assert "implausible CDR3 length (48 residues)" in a.warnings
+
+
+def test_indel_in_the_j_at_the_anchor_keeps_the_cdr3_and_warns():
+    # One base inserted in the J just ahead of the Phe codon (T run): the
+    # junction still reads Cys to Phe in the V frame, FR4 is shifted.
+    from tcr_explorer.reconstructor import _j_frame_and_fw
+    from tcr_explorer.tcr_align import assign
+    v = _human("TRB", "V", "TRBV9*01")
+    j = _human("TRB", "J", "TRBJ2-3*01")
+    _frame, fw = _j_frame_and_fw(j.nt)
+    seq, _cut = _rearranged(v, j, "GGGACAGGC", j_trim_codons=2)
+    at = seq.index(j.nt[fw - 9 : fw + 6]) + 9
+    a = assign(seq[:at] + "T" + seq[at:], species="human", chain="TRB")
+    assert a.cdr3_aa == "CASGTGDTQYF"
+    assert "frameshift in the J at the CDR3 anchor" in a.warnings

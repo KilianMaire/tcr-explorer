@@ -259,6 +259,17 @@ def _j_frame_and_fw(j_nt: str) -> tuple[int, int]:
         frame, fw_res_index, _ = clean[0] if clean else candidates[0]
         return frame, fw_res_index * 3 + frame
 
+    # No canonical motif behind a stop-free prefix. A J-REGION ends one base
+    # into the codon it shares with the constant region, which gives the frame
+    # without any motif. Search that frame for the non-canonical anchors
+    # (TRAJ16 F-A-x-G, TRAJ35 C-G-x-G, TRGJP1 F-A-x-G); a stop upstream of the
+    # anchor is tolerated here because the germline 5' end is trimmed at
+    # recombination (TRAJ58 opens with a stop codon in its coding frame).
+    frame = (len(j_nt) - 1) % 3
+    match = re.search(r"[FWC][GA].G", _translate(j_nt[frame:]))
+    if match:
+        return frame, match.start() * 3 + frame
+
     return fewest_stops_frame, -1
 
 
